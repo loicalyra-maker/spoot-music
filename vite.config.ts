@@ -192,6 +192,7 @@ function ytDlpStreamResolver(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: './',
   plugins: [react(), ytDlpStreamResolver()],
   clearScreen: false,
   server: {

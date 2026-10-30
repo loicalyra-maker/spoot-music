@@ -120,7 +120,7 @@ export const NavigationLayout: React.FC<NavigationLayoutProps> = ({ children }) 
             <div
               className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-overlay transition-opacity duration-700"
               style={{
-                backgroundImage: 'url(/liquid-glass-bg.svg)',
+                backgroundImage: 'url(./liquid-glass-bg.svg)',
               }}
             />
           )}

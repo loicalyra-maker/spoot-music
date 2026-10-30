@@ -18,6 +18,9 @@ export const SpootLogo: React.FC<SpootLogoProps> = ({
 }) => {
   const [imageError, setImageError] = useState(false);
 
+  const logoSrc = './brand/spoot_logo_official.png';
+  const badgeSrc = './brand/spoot_badge.png';
+
   // Mode avec texte : Bannière Officielle Complète Spoot Music
   if (showText && !imageError) {
     const bannerHeight = Math.max(30, size);
@@ -27,7 +30,7 @@ export const SpootLogo: React.FC<SpootLogoProps> = ({
         title="Spoot Music — Hi-Res Audio"
       >
         <img
-          src="/brand/spoot_logo_official.png"
+          src={logoSrc}
           alt="Spoot Music — Hi-Res Audio"
           style={{ height: `${bannerHeight}px`, width: 'auto' }}
           className="object-contain drop-shadow-[0_4px_16px_rgba(6,182,212,0.35)] transition-all group-hover:drop-shadow-[0_6px_22px_rgba(6,182,212,0.6)]"
@@ -48,7 +51,7 @@ export const SpootLogo: React.FC<SpootLogoProps> = ({
         className="relative rounded-xl overflow-hidden shrink-0 shadow-[0_4px_16px_rgba(6,182,212,0.35)] transition-transform group-hover:scale-105 group-active:scale-95 border border-white/20 bg-[#03050f]"
       >
         <img
-          src="/brand/spoot_badge.png"
+          src={badgeSrc}
           alt="Spoot Music Logo"
           className="w-full h-full object-cover rounded-xl"
         />

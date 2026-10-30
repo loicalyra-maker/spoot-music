@@ -1,22 +1,24 @@
-const CACHE_NAME = 'spoot-music-cache-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/brand/icon-192.png',
-  '/brand/icon-512.png',
-  '/brand/spoot_badge.png',
-  '/brand/spoot_badge_official.png',
-  '/brand/spoot_logo_full.png',
-  '/liquid-glass-bg.svg'
-];
+const CACHE_NAME = 'spoot-music-v2';
 
 self.addEventListener('install', (event) => {
+  const scope = self.registration.scope;
+  const STATIC_ASSETS = [
+    scope,
+    `${scope}index.html`,
+    `${scope}manifest.json`,
+    `${scope}brand/icon-192.png`,
+    `${scope}brand/icon-512.png`,
+    `${scope}brand/spoot_badge.png`,
+    `${scope}brand/spoot_badge_official.png`,
+    `${scope}brand/spoot_logo_full.png`,
+    `${scope}liquid-glass-bg.svg`
+  ];
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Pre-caching static assets');
+      console.log('[SW] Pre-caching static assets relative to scope:', scope);
       return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[SW] Pre-cache partial failure:', err);
+        console.warn('[SW] Pre-cache partial warning:', err);
       });
     })
   );
@@ -42,16 +44,16 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Pour les requêtes d'API de streaming ou réseau, stratégie Network-First avec fallback
-  if (url.pathname.startsWith('/api/')) {
+  // Éviter de cacher les requêtes d'API de flux externes ou streaming temps réel
+  if (url.pathname.includes('/api/')) {
     return;
   }
 
-  // Pour tous les assets statiques (HTML, JS, CSS, images, polices) : Cache-First avec mise à jour en tâche de fond
+  // Pour tous les fichiers statiques de l'app (JS, CSS, HTML, icônes) : Cache-First
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Fetch en tâche de fond pour mettre à jour le cache si en ligne
+        // En tâche de fond, rafraîchir discrètement si réseau dispo
         fetch(event.request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse.clone()));
@@ -70,9 +72,9 @@ self.addEventListener('fetch', (event) => {
         });
         return networkResponse;
       }).catch(() => {
-        // Si complètement hors ligne et ressource HTML demandée, renvoyer l'index en cache
+        // En cas de coupure réseau complète ou PC éteint, servir l'application indexée
         if (event.request.headers.get('accept')?.includes('text/html')) {
-          return caches.match('/index.html');
+          return caches.match(`${self.registration.scope}index.html`) || caches.match(self.registration.scope);
         }
       });
     })
