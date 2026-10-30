@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+*.local
+.temp_ipa
+src-tauri/target
+*.log
+.DS_Store
+SpootMusic.zip
+SpootMusic.ipa

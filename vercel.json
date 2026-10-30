@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "rewrites": [
+    {
+      "source": "/api/deezer/(.*)",
+      "destination": "https://api.deezer.com/$1"
+    },
+    {
+      "source": "/api/lrclib/(.*)",
+      "destination": "https://lrclib.net/$1"
+    },
+    {
+      "source": "/api/invidious/(.*)",
+      "destination": "https://yt.chocolatemoo53.com/$1"
+    },
+    {
+      "source": "/api/itunes/(.*)",
+      "destination": "https://itunes.apple.com/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

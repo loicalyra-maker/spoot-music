@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <!-- Ocean Ambient Sky Gradient -->
+    <linearGradient id="oceanSky" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#051f28"/>
+      <stop offset="25%" stop-color="#083848"/>
+      <stop offset="60%" stop-color="#0c5268"/>
+      <stop offset="100%" stop-color="#052733"/>
+    </linearGradient>
+
+    <!-- Radiant Cyan Sun / Sea Glow -->
+    <radialGradient id="seaSunGlow" cx="75%" cy="20%" r="60%">
+      <stop offset="0%" stop-color="#a5f3fc" stop-opacity="0.55"/>
+      <stop offset="35%" stop-color="#38bdf8" stop-opacity="0.30"/>
+      <stop offset="70%" stop-color="#0284c7" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#0369a1" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Wave 1 : Deep Aqua Blue Dune -->
+    <linearGradient id="waveAqua" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0369a1" stop-opacity="0.85"/>
+      <stop offset="45%" stop-color="#0284c7" stop-opacity="0.90"/>
+      <stop offset="80%" stop-color="#06b6d4" stop-opacity="0.80"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.60"/>
+    </linearGradient>
+
+    <!-- Wave 2 : Radiant Turquoise / Ocean Crest -->
+    <linearGradient id="waveTurquoise" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14b8a6" stop-opacity="0.85"/>
+      <stop offset="50%" stop-color="#06b6d4" stop-opacity="0.92"/>
+      <stop offset="85%" stop-color="#0284c7" stop-opacity="0.88"/>
+      <stop offset="100%" stop-color="#034e6b" stop-opacity="0.75"/>
+    </linearGradient>
+
+    <!-- Wave 3 : Emerald Sea Wave Foreground -->
+    <linearGradient id="waveEmerald" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" stop-opacity="0.70"/>
+      <stop offset="35%" stop-color="#10b981" stop-opacity="0.82"/>
+      <stop offset="70%" stop-color="#0d9488" stop-opacity="0.90"/>
+      <stop offset="100%" stop-color="#064e3b" stop-opacity="0.70"/>
+    </linearGradient>
+
+    <!-- Wave Crest Highlight (Luminescent Edge) -->
+    <linearGradient id="crestHighlight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="40%" stop-color="#a5f3fc" stop-opacity="0.85"/>
+      <stop offset="80%" stop-color="#67e8f9" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.2"/>
+    </linearGradient>
+
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="40"/>
+    </filter>
+  </defs>
+
+  <!-- Deep Ocean Sky -->
+  <rect width="100%" height="100%" fill="url(#oceanSky)"/>
+
+  <!-- Radiant Light Orb -->
+  <circle cx="1400" cy="220" r="600" fill="url(#seaSunGlow)"/>
+  <circle cx="450" cy="750" r="500" fill="#0d9488" opacity="0.35" filter="url(#softGlow)"/>
+
+  <!-- Wave 1 (Back Layer) -->
+  <path d="M 0 540 Q 400 380, 950 500 T 1920 420 L 1920 1080 L 0 1080 Z" fill="url(#waveAqua)"/>
+
+  <!-- Wave 2 (Middle Flowing Dune with Crest Highlight) -->
+  <path d="M 0 680 Q 520 460, 1100 620 T 1920 560 L 1920 1080 L 0 1080 Z" fill="url(#waveTurquoise)"/>
+  <path d="M 0 680 Q 520 460, 1100 620 T 1920 560" fill="none" stroke="url(#crestHighlight)" stroke-width="3" opacity="0.65"/>
+
+  <!-- Wave 3 (Foreground Emerald Silk Curve) -->
+  <path d="M 0 820 Q 600 650, 1250 780 T 1920 720 L 1920 1080 L 0 1080 Z" fill="url(#waveEmerald)"/>
+  <path d="M 0 820 Q 600 650, 1250 780 T 1920 720" fill="none" stroke="url(#crestHighlight)" stroke-width="4" opacity="0.75"/>
+
+  <!-- Ambient Bottom Depth Gradient -->
+  <rect y="880" width="100%" height="200" fill="url(#oceanSky)" opacity="0.4"/>
+</svg>
