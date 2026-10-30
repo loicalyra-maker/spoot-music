@@ -28,7 +28,8 @@ export class WebAudioEngine {
     if (typeof window !== 'undefined') {
       this.audioEl = new Audio();
       this.audioEl.crossOrigin = 'anonymous';
-      this.audioEl.preload = 'auto';
+      // Optimisation données mobiles (iPhone 16 Pro Max) : ne charge que les métadonnées au repos
+      this.audioEl.preload = 'metadata';
 
       this.audioEl.addEventListener('ended', () => {
         // Ne jamais changer de piste suite à un dépassement accidentel de seek

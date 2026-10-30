@@ -249,7 +249,7 @@ export const INITIAL_TRACKS: Track[] = [
     artistName: 'SDM',
     albumId: '592810341',
     albumTitle: 'ALVALM',
-    coverUrl: 'https://cdn-images.dzcdn.net/images/cover/3f6bb61ceba077db36d07d1a1005a30d/1000x1000-000000-80-0-0.jpg',
+    coverUrl: 'https://cdn-images.dzcdn.net/images/cover/640220bd3d80561118391eef3a24fb53/1000x1000-000000-80-0-0.jpg',
     durationMs: 183000,
     sampleRate: 96000,
     bitDepth: 24,

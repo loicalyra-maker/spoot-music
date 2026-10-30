@@ -68,8 +68,8 @@ export const LyricsViewer: React.FC<LyricsViewerProps> = ({ onClose, isOverlay =
       />
       <div className="absolute inset-0 bg-black/50 pointer-events-none" />
 
-      {/* Barre supérieure Apple-grade */}
-      <div className="relative z-20 px-8 py-5 flex items-center justify-between border-b border-white/[0.08] backdrop-blur-md bg-white/[0.02]">
+      {/* Barre supérieure Apple-grade avec marge de sécurité Dynamic Island pour iPhone 16 Pro Max */}
+      <div className="relative z-20 px-6 pt-[max(env(safe-area-inset-top)+14px,64px)] pb-4 flex items-center justify-between border-b border-white/[0.08] backdrop-blur-md bg-white/[0.02]">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-white shadow-md">
             <Mic2 className="w-4 h-4 text-cyan-300" />

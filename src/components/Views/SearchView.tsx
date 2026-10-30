@@ -112,7 +112,7 @@ export const SearchView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 md:space-y-7 custom-scrollbar select-none text-white pb-36">
+    <div className="flex-1 overflow-y-auto pt-[max(env(safe-area-inset-top)+14px,20px)] px-4 pb-36 md:p-6 space-y-6 md:space-y-7 custom-scrollbar select-none text-white">
       {/* 1. Barre de Recherche Principale & Commande Vocale (Mobile & Desktop) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">

@@ -12,7 +12,7 @@ export const CarModeView: React.FC = () => {
   if (!currentTrack) return null;
 
   return (
-    <div className="fixed inset-0 bg-[#000000] z-50 flex flex-col justify-between p-6 md:p-12 select-none">
+    <div className="fixed inset-0 bg-[#000000] z-50 flex flex-col justify-between pt-[max(env(safe-area-inset-top)+20px,64px)] pb-[max(env(safe-area-inset-bottom)+20px,36px)] px-6 md:p-12 select-none">
       {/* Header with Exit */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-mono text-spoot-neon font-bold tracking-wider">

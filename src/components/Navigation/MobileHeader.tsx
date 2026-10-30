@@ -30,7 +30,7 @@ export const MobileHeader: React.FC = () => {
   }
 
   return (
-    <header className="w-full pt-[max(env(safe-area-inset-top),12px)] pb-3 px-4 flex flex-col gap-3 z-30 select-none bg-gradient-to-b from-[#03070d]/95 via-[#03070d]/80 to-transparent backdrop-blur-xl border-b border-white/[0.08]">
+    <header className="w-full pt-[max(env(safe-area-inset-top)+8px,56px)] pb-3 px-4 flex flex-col gap-3 z-30 select-none bg-gradient-to-b from-[#03070d]/95 via-[#03070d]/80 to-transparent backdrop-blur-xl border-b border-white/[0.08]">
       {/* 1. Ligne Supérieure : Logo Spoot Music Officiel, Profil & Paramètres (Exclusif Accueil) */}
       <div className="flex items-center justify-between w-full">
         {/* Gauche : Avatar utilisateur + Logo Spoot Music officiel HD */}
