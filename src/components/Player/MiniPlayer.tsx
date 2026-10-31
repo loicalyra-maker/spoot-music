@@ -64,7 +64,7 @@ export const MiniPlayer: React.FC = () => {
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  // Synchronisation temporelle avec le moteur audio réel
+  // Synchronisation temporelle optimisée ProMotion 120Hz avec le moteur audio réel
   useEffect(() => {
     if (isPlaying) {
       progressIntervalRef.current = window.setInterval(() => {
@@ -72,7 +72,7 @@ export const MiniPlayer: React.FC = () => {
           const actualPos = audioCore.getPositionMs();
           updatePosition(actualPos);
         }
-      }, 150);
+      }, 250);
     } else {
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     }

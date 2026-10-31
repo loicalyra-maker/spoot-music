@@ -125,17 +125,19 @@ export const NavigationLayout: React.FC<NavigationLayoutProps> = ({ children }) 
             />
           )}
 
-          {/* Blobs organiques animés en dérive lente (Mesh drift 45s) aux couleurs vives du preset */}
+          {/* Blobs organiques animés optimisés GPU (Mesh drift 45s, ProMotion 120Hz) */}
           <div
-            className="absolute -top-32 left-1/4 w-[750px] h-[520px] rounded-full blur-[140px] opacity-40 animate-fluid-mesh pointer-events-none transition-all duration-1000 ease-out"
+            className="absolute -top-32 left-1/4 w-[750px] h-[520px] rounded-full blur-[40px] md:blur-[110px] opacity-40 animate-fluid-mesh pointer-events-none transition-all duration-1000 ease-out will-change-transform"
             style={{
               background: `radial-gradient(circle, ${dynamicColor} 0%, ${secondaryColor} 60%, transparent 80%)`,
+              transform: 'translate3d(0, 0, 0)',
             }}
           />
           <div
-            className="absolute -bottom-24 right-1/4 w-[650px] h-[480px] rounded-full blur-[130px] opacity-30 animate-wave-pulse pointer-events-none transition-all duration-1000 ease-out"
+            className="absolute -bottom-24 right-1/4 w-[650px] h-[480px] rounded-full blur-[35px] md:blur-[100px] opacity-30 animate-wave-pulse pointer-events-none transition-all duration-1000 ease-out will-change-transform"
             style={{
               background: `radial-gradient(circle, ${secondaryColor} 0%, ${dynamicColor} 60%, transparent 80%)`,
+              transform: 'translate3d(0, 0, 0)',
             }}
           />
 

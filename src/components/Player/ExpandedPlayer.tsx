@@ -7,9 +7,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   ChevronDown, MoreHorizontal, Play, Pause, SkipBack, SkipForward,
   Shuffle, Repeat, Repeat1, Check, Plus, Laptop2, Share2, ListMusic,
-  Sliders, Mic2, ShieldAlert, Sparkles, X, Heart
+  Sliders, Mic2, ShieldAlert, Sparkles, X, Heart, Maximize2
 } from 'lucide-react';
 import { useSpootStore } from '../../store/useSpootStore';
+import { deezerService } from '../../services/deezer_service';
+import { LyricLine } from '../../types';
 
 export const ExpandedPlayer: React.FC = () => {
   const {
@@ -43,6 +45,37 @@ export const ExpandedPlayer: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragPositionMs, setDragPositionMs] = useState(0);
   const timelineRef = useRef<HTMLDivElement | null>(null);
+  const lyricsPreviewContainerRef = useRef<HTMLDivElement | null>(null);
+  const activePreviewLineRef = useRef<HTMLDivElement | null>(null);
+
+  const lyrics: LyricLine[] = currentTrack?.lyrics || [];
+  const activeLyricIndex = lyrics.findIndex((line, idx) => {
+    const nextLine = lyrics[idx + 1];
+    if (nextLine) {
+      return (positionMs || 0) >= line.timeMs && (positionMs || 0) < nextLine.timeMs;
+    }
+    return (positionMs || 0) >= line.timeMs;
+  });
+  const currentLyricIndex = activeLyricIndex >= 0 ? activeLyricIndex : 0;
+
+  useEffect(() => {
+    if (activePreviewLineRef.current && lyricsPreviewContainerRef.current) {
+      activePreviewLineRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [currentLyricIndex]);
+
+  useEffect(() => {
+    if (currentTrack && (!currentTrack.lyrics || currentTrack.lyrics.length === 0)) {
+      deezerService.getSyncedLyrics(currentTrack.artistName, currentTrack.title, durationMs || currentTrack.durationMs).then((res) => {
+        if (res.lyrics && res.lyrics.length > 0) {
+          currentTrack.lyrics = res.lyrics;
+        }
+      });
+    }
+  }, [currentTrack?.id]);
 
   if (!expandedPlayerOpen || !currentTrack) return null;
 
@@ -107,9 +140,9 @@ export const ExpandedPlayer: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-between pt-[max(env(safe-area-inset-top)+12px,52px)] pb-[max(env(safe-area-inset-bottom)+12px,32px)] px-6 sm:px-8 select-none overflow-y-auto no-scrollbar animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex flex-col justify-between pt-[max(env(safe-area-inset-top)+12px,52px)] pb-[max(env(safe-area-inset-bottom)+12px,32px)] px-6 sm:px-8 select-none overflow-y-auto no-scrollbar animate-in fade-in duration-200 bg-[#050608]"
       style={{
-        background: `radial-gradient(circle at 50% 20%, ${currentTrack.palette?.primary || '#134e4a'}45 0%, #080c10 60%, #030406 100%)`,
+        background: `radial-gradient(circle at 50% 15%, ${currentTrack.palette?.primary || '#134e4a'}65 0%, #0b0f14 55%, #050608 100%)`,
       }}
     >
       {/* 1. TOP HEADER (Chevron Down, Artist Name, More Options) */}
@@ -411,7 +444,72 @@ export const ExpandedPlayer: React.FC = () => {
         </div>
       </div>
 
-      {/* 7. BOTTOM PEEKING CARD ("Crédits" Drawer as shown in screenshot) */}
+      {/* 7. PAROLES SYNCHRONISÉES (Carte interactive placée immédiatement avant les Crédits) */}
+      <div className="w-full max-w-md mx-auto pt-3">
+        <div
+          onClick={() => setLyricsOpen(true)}
+          className="w-full rounded-2xl bg-gradient-to-b from-[#222224]/95 to-[#161618]/95 hover:from-[#2a2a2d] hover:to-[#1c1c1f] border border-white/10 p-4 cursor-pointer transition-all shadow-xl backdrop-blur-xl group"
+        >
+          <div className="flex items-center justify-between pb-2 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <Mic2 className="w-4 h-4 text-[#1ed760]" />
+              <h3 className="font-extrabold text-sm text-white tracking-wide">Paroles</h3>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#1ed760]/20 text-[#1ed760] border border-[#1ed760]/30">
+                Synchronisées
+              </span>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setLyricsOpen(true);
+              }}
+              className="text-xs text-white/70 hover:text-white font-semibold flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/15 transition-all"
+              title="Agrandir les paroles en plein écran"
+            >
+              <span>Agrandir</span>
+              <Maximize2 className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* Défilement en direct des paroles synchronisées avec mise en valeur de la ligne active */}
+          <div
+            ref={lyricsPreviewContainerRef}
+            className="mt-3 max-h-32 overflow-y-auto space-y-2.5 scrollbar-none pr-1 select-none"
+          >
+            {lyrics.length > 0 ? (
+              lyrics.map((line, idx) => {
+                const isActive = idx === currentLyricIndex;
+                return (
+                  <div
+                    key={`${line.timeMs}-${idx}`}
+                    ref={isActive ? activePreviewLineRef : null}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      seek(line.timeMs);
+                    }}
+                    className={`transition-all duration-300 cursor-pointer rounded-lg px-2.5 py-1.5 ${
+                      isActive
+                        ? 'text-white font-extrabold text-base scale-[1.02] bg-white/[0.08] shadow-[0_0_20px_rgba(30,215,96,0.18)] border-l-2 border-[#1ed760]'
+                        : 'text-white/45 hover:text-white/80 font-medium text-xs sm:text-sm hover:bg-white/[0.03]'
+                    }`}
+                  >
+                    <p className="leading-snug">{line.text}</p>
+                    {line.translatedText && (
+                      <p className="text-[11px] text-white/40 mt-0.5">{line.translatedText}</p>
+                    )}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-4 text-center text-xs text-white/50 animate-pulse">
+                Chargement des paroles synchronisées...
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 8. BOTTOM PEEKING CARD ("Crédits" Drawer as shown in screenshot) */}
       <div className="w-full max-w-md mx-auto pt-3">
         <div
           onClick={() => setCreditsExpanded(!creditsExpanded)}

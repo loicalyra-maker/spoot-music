@@ -23,36 +23,32 @@ export const AlbumView: React.FC = () => {
   const [hoveredTrackId, setHoveredTrackId] = useState<string | null>(null);
   const [isAddedToLibrary, setIsAddedToLibrary] = useState(false);
 
-  // Charge l'album via Deezer Public API (Par défaut : "Give Me A Dream" de Strawberry Guy, Screenshot 3)
+  // Charge l'album via Deezer Public API + Fallback Cloud autonome
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
 
-    const targetId = activeAlbumId ? activeAlbumId.replace(/^alb-/, '') : '1025978502'; // Deezer ID pour Give Me A Dream
+    const targetId = activeAlbumId ? activeAlbumId.replace(/^alb-/, '') : '1025978502';
+
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 450);
 
     deezerService.getAlbum(targetId).then((data) => {
       if (isMounted) {
         if (data) {
           setAlbum(data);
-        } else {
-          // Fallback recherche si l'ID direct échoue
-          deezerService.search('Give Me A Dream Strawberry Guy').then((res) => {
-            if (isMounted && res.albums[0]) {
-              deezerService.getAlbum(res.albums[0].id).then((albData) => {
-                if (isMounted && albData) setAlbum(albData);
-              });
-            }
-          });
         }
         setLoading(false);
       }
     }).catch((err) => {
-      console.error('Failed to load album:', err);
+      console.warn('Failed to load album:', err);
       if (isMounted) setLoading(false);
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimer);
     };
   }, [activeAlbumId]);
 

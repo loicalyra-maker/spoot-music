@@ -451,9 +451,9 @@ export const useSpootStore = create<SpootState>((set, get) => {
 
       audioCore.playTrack(track, 0);
 
-      // Charge automatiquement les vraies paroles synchronisées LRCLIB
+      // Charge automatiquement les vraies paroles synchronisées LRCLIB (avec fallback universel)
       if (!track.lyrics || track.lyrics.length === 0) {
-        deezerService.getSyncedLyrics(track.artistName, track.title).then((result) => {
+        deezerService.getSyncedLyrics(track.artistName, track.title, track.durationMs).then((result) => {
           if (result.isInstrumental) {
             track.isInstrumental = true;
             if (get().currentTrack?.id === track.id) {

@@ -709,7 +709,7 @@ class SpotifyApiClient {
         lastPlayedTimestamp: Date.now(),
         isFavorite: false,
         isOfflineDownloaded: false,
-        streamUrl: 'https://cdnt-preview.dzcdn.net/api/1/1/a/7/0/0/a70de12faa7719b8dc69def829f957eb.mp3',
+        streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/4e/73/ae/4e73ae7f-96d6-5100-d3d3-3c50c28a1f19/mzaf_6031201848020469124.plus.aac.p.m4a',
         acousticVector: {
           bpm: 120,
           camelotKey: '6A',

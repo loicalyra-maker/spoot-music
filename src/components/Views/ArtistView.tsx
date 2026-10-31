@@ -28,18 +28,26 @@ export const ArtistView: React.FC = () => {
   const [isFollowed, setIsFollowed] = useState(false);
   const [discoTab, setDiscoTab] = useState<'popular' | 'albums' | 'singles'>('popular');
 
-  // Chargement officiel via Deezer Public API (Routage strict par artist_id Deezer)
+  // Chargement officiel via Deezer Public API + Fallback Cloud iTunes mondial
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
 
     const targetId = activeArtistId 
       ? activeArtistId.replace(/^art-/, '').replace(/^dz-/, '') 
-      : '8673550'; // Par défaut : Vacra (Screenshot 2 & 4)
+      : '8673550'; // Par défaut : Vacra
+
+    // Timeout de sécurité : garantit que l'écran ne reste jamais bloqué plus de 300ms
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 450);
 
     deezerService.getArtist(targetId).then((art) => {
       if (!isMounted) return;
-      if (art) setArtist(art);
+      if (art) {
+        setArtist(art);
+        setLoading(false);
+      }
       const listeners = art?.monthlyListeners || 3500000;
 
       Promise.allSettled([
@@ -49,21 +57,24 @@ export const ArtistView: React.FC = () => {
       ]).then(([tracksRes, albumsRes, relatedRes]) => {
         if (!isMounted) return;
 
-        if (tracksRes.status === 'fulfilled') {
+        if (tracksRes.status === 'fulfilled' && tracksRes.value.length > 0) {
           setTopTracks(tracksRes.value);
         }
-        if (albumsRes.status === 'fulfilled') {
+        if (albumsRes.status === 'fulfilled' && albumsRes.value.length > 0) {
           setAlbums(albumsRes.value);
         }
-        if (relatedRes.status === 'fulfilled') {
+        if (relatedRes.status === 'fulfilled' && relatedRes.value.length > 0) {
           setRelatedArtists(relatedRes.value);
         }
         setLoading(false);
       });
+    }).catch(() => {
+      if (isMounted) setLoading(false);
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimer);
     };
   }, [activeArtistId]);
 

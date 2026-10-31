@@ -173,27 +173,27 @@ body {
 /* 6. Vagues Organiques & Mesh Gradient Animé (Section 2) */
 @keyframes fluid-mesh-drift {
   0% {
-    transform: translate(0px, 0px) scale(1);
+    transform: translate3d(0px, 0px, 0) scale(1);
   }
   33% {
-    transform: translate(35px, -45px) scale(1.08);
+    transform: translate3d(35px, -45px, 0) scale(1.08);
   }
   66% {
-    transform: translate(-40px, 30px) scale(0.95);
+    transform: translate3d(-40px, 30px, 0) scale(0.95);
   }
   100% {
-    transform: translate(0px, 0px) scale(1);
+    transform: translate3d(0px, 0px, 0) scale(1);
   }
 }
 
 @keyframes wave-pulse {
   0%, 100% {
     opacity: 0.35;
-    transform: scale(1) translateY(0);
+    transform: scale(1) translate3d(0, 0, 0);
   }
   50% {
     opacity: 0.55;
-    transform: scale(1.04) translateY(-12px);
+    transform: scale(1.04) translate3d(0, -12px, 0);
   }
 }
 
@@ -274,9 +274,8 @@ body {
   position: absolute;
   inset: 0;
   z-index: 0;
-  backdrop-filter: blur(0.6px);
-  -webkit-backdrop-filter: blur(0.6px);
-  filter: url(#mini-liquid-lens);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 .slider-thumb-glass-overlay {

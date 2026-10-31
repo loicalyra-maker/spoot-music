@@ -42,6 +42,22 @@ export class WebAudioEngine {
           }
         }
       });
+
+      // Récupération automatique et instantanée en cas d'erreur de lecture (ex: flux expiré)
+      this.audioEl.addEventListener('error', async () => {
+        if (!this.currentTrack || !this.audioEl) return;
+        console.warn('Audio playback error on stream, attempting immediate cloud recovery...');
+        try {
+          const freshUrl = await musicApi.resolveFullAudioStream(this.currentTrack.artistName, this.currentTrack.title);
+          if (freshUrl && this.audioEl && this.audioEl.src !== freshUrl) {
+            this.currentTrack.streamUrl = freshUrl;
+            this.audioEl.src = freshUrl;
+            await this.audioEl.play();
+          }
+        } catch (recoveryErr) {
+          console.warn('Auto-recovery playback error:', recoveryErr);
+        }
+      });
     }
   }
 
@@ -124,7 +140,8 @@ export class WebAudioEngine {
 
     // Détermine le flux audio réel (CDN iTunes / Deezer / YouTube Music)
     let streamUrl = track.streamUrl;
-    if (!streamUrl || (!streamUrl.startsWith('http') && !streamUrl.startsWith('/api/stream-audio'))) {
+    const isBrokenDeezer = Boolean(streamUrl && streamUrl.includes('cdnt-preview.dzcdn.net'));
+    if (!streamUrl || isBrokenDeezer || (!streamUrl.startsWith('http') && !streamUrl.startsWith('/api/stream-audio'))) {
       streamUrl = await musicApi.resolveFullAudioStream(track.artistName, track.title, track.streamUrl);
       if (streamUrl) {
         track.streamUrl = streamUrl;
