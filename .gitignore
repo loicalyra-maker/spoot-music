@@ -8,3 +8,5 @@ src-tauri/target
 .DS_Store
 SpootMusic.zip
 SpootMusic.ipa
+
+.vercel

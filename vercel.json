@@ -1,25 +1,39 @@
 {
-  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
   "rewrites": [
-    {
-      "source": "/api/deezer/(.*)",
-      "destination": "https://api.deezer.com/$1"
-    },
-    {
-      "source": "/api/lrclib/(.*)",
-      "destination": "https://lrclib.net/$1"
-    },
-    {
-      "source": "/api/invidious/(.*)",
-      "destination": "https://yt.chocolatemoo53.com/$1"
-    },
-    {
-      "source": "/api/itunes/(.*)",
-      "destination": "https://itunes.apple.com/$1"
-    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
     }
   ]
 }
