@@ -1,27 +1,6 @@
-const CACHE_NAME = 'spoot-music-v2';
+const CACHE_NAME = 'spoot-music-v3';
 
 self.addEventListener('install', (event) => {
-  const scope = self.registration.scope;
-  const STATIC_ASSETS = [
-    scope,
-    `${scope}index.html`,
-    `${scope}manifest.json`,
-    `${scope}brand/icon-192.png`,
-    `${scope}brand/icon-512.png`,
-    `${scope}brand/spoot_badge.png`,
-    `${scope}brand/spoot_badge_official.png`,
-    `${scope}brand/spoot_logo_full.png`,
-    `${scope}liquid-glass-bg.svg`
-  ];
-
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Pre-caching static assets relative to scope:', scope);
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[SW] Pre-cache partial warning:', err);
-      });
-    })
-  );
   self.skipWaiting();
 });
 
@@ -31,7 +10,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
-            console.log('[SW] Removing old cache', key);
+            console.log('[SW] Purging old cache:', key);
             return caches.delete(key);
           }
         })
@@ -44,21 +23,32 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Éviter de cacher les requêtes d'API de flux externes ou streaming temps réel
+  // Ignorer les requêtes d'API streaming ou réseau
   if (url.pathname.includes('/api/')) {
     return;
   }
 
-  // Pour tous les fichiers statiques de l'app (JS, CSS, HTML, icônes) : Cache-First
+  // 1. Pour les requêtes HTML de navigation (index.html) : Network-First avec fallback cache
+  // Permet de recevoir instantanément les mises à jour sans écran blanc
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(event.request).then((res) => res || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // 2. Pour tous les autres assets (JS, CSS, images, polices) : Stale-While-Revalidate / Cache-First
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // En tâche de fond, rafraîchir discrètement si réseau dispo
-        fetch(event.request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse.clone()));
-          }
-        }).catch(() => {});
         return cachedResponse;
       }
 
@@ -66,16 +56,11 @@ self.addEventListener('fetch', (event) => {
         if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
           return networkResponse;
         }
-        const responseToCache = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseToCache);
-        });
+        const clone = networkResponse.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         return networkResponse;
-      }).catch(() => {
-        // En cas de coupure réseau complète ou PC éteint, servir l'application indexée
-        if (event.request.headers.get('accept')?.includes('text/html')) {
-          return caches.match(`${self.registration.scope}index.html`) || caches.match(self.registration.scope);
-        }
+      }).catch((err) => {
+        console.warn('[SW] Offline asset fetch failed:', url.pathname);
       });
     })
   );

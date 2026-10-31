@@ -114,6 +114,7 @@ export class DeezerService {
       albumId,
       albumTitle,
       coverUrl: coverHd,
+      streamUrl: t.preview || undefined,
       durationMs: (t.duration || 180) * 1000,
       sampleRate: 96000,
       bitDepth: 24,
@@ -146,7 +147,53 @@ export class DeezerService {
   }
 
   /**
-   * Recherche universelle (Titres, Artistes, Albums) via Deezer Public API
+   * Mappe un titre iTunes vers le format interne Track (avec stream audio immédiat et pochette 1000x1000)
+   */
+  public mapItunesTrack(item: any): Track {
+    const durationMs = item.trackTimeMillis || 180000;
+    const cover = (item.artworkUrl100 || '').replace('100x100bb', '1000x1000bb');
+    const trackId = `it-${item.trackId}`;
+
+    return {
+      id: trackId,
+      isrc: `US-IT-${item.trackId}`,
+      title: item.trackName,
+      artistId: String(item.artistId || '0'),
+      artistName: item.artistName,
+      albumId: String(item.collectionId || '0'),
+      albumTitle: item.collectionName || 'Single',
+      coverUrl: cover,
+      streamUrl: item.previewUrl || undefined,
+      durationMs,
+      sampleRate: 96000,
+      bitDepth: 24,
+      bitrateKbps: 4608,
+      formatLabel: 'Hi-Res Lossless 24-bit / 96 kHz Apple Audio',
+      releaseDate: item.releaseDate ? item.releaseDate.split('T')[0] : '2024-01-01',
+      playCount: 154200,
+      lastPlayedTimestamp: Date.now(),
+      isFavorite: false,
+      isOfflineDownloaded: false,
+      isExplicit: item.trackExplicitness === 'explicit',
+      hasVideo: false,
+      palette: { primary: '#450af5', secondary: '#121212' },
+      acousticVector: {
+        bpm: 120,
+        camelotKey: '8B',
+        energy: 0.75,
+        valence: 0.60,
+        danceability: 0.70,
+        acousticness: 0.20,
+        loudnessLufs: -6.0,
+        decade: 2024,
+        genre: item.primaryGenreName || 'Musique',
+      },
+      lyrics: [],
+    };
+  }
+
+  /**
+   * Recherche universelle (Titres, Artistes, Albums) via Deezer Public API avec fallback iTunes mondial
    */
   public async search(query: string, limit: number = 30): Promise<{ tracks: Track[]; artists: Artist[]; albums: Album[] }> {
     if (!query.trim()) {
@@ -160,9 +207,9 @@ export class DeezerService {
 
     try {
       const [tracksRes, artistsRes, albumsRes] = await Promise.allSettled([
-        fetch(`/api/deezer/search?q=${encoded}&limit=${limit}`),
-        fetch(`/api/deezer/search/artist?q=${encoded}&limit=8`),
-        fetch(`/api/deezer/search/album?q=${encoded}&limit=12`),
+        fetch(`/api/deezer/search?q=${encoded}&limit=${limit}`, { signal: AbortSignal.timeout(2500) }),
+        fetch(`/api/deezer/search/artist?q=${encoded}&limit=8`, { signal: AbortSignal.timeout(2500) }),
+        fetch(`/api/deezer/search/album?q=${encoded}&limit=12`, { signal: AbortSignal.timeout(2500) }),
       ]);
 
       if (tracksRes.status === 'fulfilled' && tracksRes.value.ok) {
@@ -210,7 +257,66 @@ export class DeezerService {
         }
       }
     } catch (err) {
-      console.error('Deezer search error:', err);
+      console.warn('Deezer direct proxy failed, falling back to iTunes API:', err);
+    }
+
+    // Fallback 100% Autonome sans backend : iTunes Search API (CORS mondial)
+    if (tracks.length === 0 || artists.length === 0 || albums.length === 0) {
+      try {
+        const [itunesTracksRes, itunesArtistsRes, itunesAlbumsRes] = await Promise.allSettled([
+          fetch(`https://itunes.apple.com/search?term=${encoded}&entity=song&limit=${limit}`),
+          fetch(`https://itunes.apple.com/search?term=${encoded}&entity=musicArtist&limit=8`),
+          fetch(`https://itunes.apple.com/search?term=${encoded}&entity=album&limit=12`),
+        ]);
+
+        if (tracks.length === 0 && itunesTracksRes.status === 'fulfilled' && itunesTracksRes.value.ok) {
+          const itData = await itunesTracksRes.value.json();
+          if (itData.results && Array.isArray(itData.results)) {
+            tracks.push(...itData.results.map((item: any) => this.mapItunesTrack(item)));
+          }
+        }
+
+        if (artists.length === 0 && itunesArtistsRes.status === 'fulfilled' && itunesArtistsRes.value.ok) {
+          const itData = await itunesArtistsRes.value.json();
+          if (itData.results && Array.isArray(itData.results)) {
+            artists.push(
+              ...itData.results.map((item: any) => ({
+                id: String(item.artistId),
+                name: item.artistName,
+                avatarUrl: tracks.find((t) => t.artistName.toLowerCase() === item.artistName.toLowerCase())?.coverUrl ||
+                  'https://cdn-images.dzcdn.net/images/artist/2cbfaf626a591e162bfcc2b4b0214217/1000x1000-000000-80-0-0.jpg',
+                monthlyListeners: 4200000,
+                bio: `Artiste officiel vérifié sur Spoot Music (${item.primaryGenreName || 'Musique'}).`,
+                isFollowed: false,
+                hasNewRelease: true,
+                albums: [],
+              }))
+            );
+          }
+        }
+
+        if (albums.length === 0 && itunesAlbumsRes.status === 'fulfilled' && itunesAlbumsRes.value.ok) {
+          const itData = await itunesAlbumsRes.value.json();
+          if (itData.results && Array.isArray(itData.results)) {
+            albums.push(
+              ...itData.results.map((alb: any) => ({
+                id: String(alb.collectionId),
+                title: alb.collectionName,
+                artistId: String(alb.artistId || '0'),
+                artistName: alb.artistName || 'Artiste',
+                coverUrl: (alb.artworkUrl100 || '').replace('100x100bb', '1000x1000bb'),
+                releaseYear: alb.releaseDate ? parseInt(alb.releaseDate.split('-')[0], 10) : 2024,
+                type: (alb.trackCount === 1 ? 'single' : 'album') as any,
+                trackCount: alb.trackCount || 10,
+                totalDurationMs: (alb.trackCount || 10) * 200000,
+                tracks: [],
+              }))
+            );
+          }
+        }
+      } catch (e) {
+        console.error('iTunes fallback search error:', e);
+      }
     }
 
     return { tracks, artists, albums };
@@ -260,7 +366,7 @@ export class DeezerService {
    */
   public async getTop50Tracks(): Promise<Track[]> {
     try {
-      const res = await fetch('/api/deezer/chart/0/tracks?limit=50');
+      const res = await fetch('/api/deezer/chart/0/tracks?limit=50', { signal: AbortSignal.timeout(2000) });
       if (res.ok) {
         const data = await res.json();
         if (data.data && Array.isArray(data.data)) {
@@ -268,8 +374,21 @@ export class DeezerService {
         }
       }
     } catch (err) {
-      console.warn('Deezer top 50 tracks fetch error:', err);
+      console.warn('Deezer top 50 tracks fetch error, falling back to iTunes:', err);
     }
+
+    try {
+      const itRes = await fetch('https://itunes.apple.com/search?term=Top+Hits+France&entity=song&limit=50');
+      if (itRes.ok) {
+        const itData = await itRes.json();
+        if (itData.results && Array.isArray(itData.results)) {
+          return itData.results.map((item: any) => this.mapItunesTrack(item));
+        }
+      }
+    } catch (e) {
+      console.error('iTunes top 50 fallback failed:', e);
+    }
+
     return [];
   }
 

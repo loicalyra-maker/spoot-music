@@ -210,6 +210,7 @@ export const HomeView: React.FC = () => {
       albumId: book.id,
       albumTitle: book.title,
       coverUrl: book.coverUrl,
+      streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/bf/f4/bf/bff4bf5f-8671-ff44-4fd7-93e185c7b3b7/mzaf_17208198750800661134.plus.aac.p.m4a',
       durationMs: 180000,
       sampleRate: 48000,
       bitDepth: 16,
@@ -244,7 +245,7 @@ export const HomeView: React.FC = () => {
       title: 'Strawberry Guy',
       artistName: 'Strawberry Guy',
       artistId: '14510531',
-      coverUrl: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=500&q=80',
+      coverUrl: 'https://cdn-images.dzcdn.net/images/artist/7774cf4dc130f4665d000669059bee1f/1000x1000-000000-80-0-0.jpg',
       trackTitle: 'Mrs Magic',
     },
     {
@@ -252,7 +253,7 @@ export const HomeView: React.FC = () => {
       title: 'Jolagreen23',
       artistName: 'Jolagreen23',
       artistId: '132179322',
-      coverUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=500&q=80',
+      coverUrl: 'https://cdn-images.dzcdn.net/images/artist/ee7069da951e11e206128ffb55e1f3d7/1000x1000-000000-80-0-0.jpg',
       trackTitle: '777',
     },
     {

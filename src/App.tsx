@@ -22,7 +22,7 @@ import { LyricsPanel } from './components/Player/LyricsPanel';
 import { QueueView } from './components/Views/QueueView';
 import { CarModeView } from './components/Views/CarModeView';
 import { useSpootStore } from './store/useSpootStore';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, X } from 'lucide-react';
 
 export const App: React.FC = () => {
   const {
@@ -31,6 +31,16 @@ export const App: React.FC = () => {
     undoNotification,
     undoLastAction
   } = useSpootStore();
+
+  // Auto-dismiss de la notification de téléchargement / undo après 2.5 secondes
+  useEffect(() => {
+    if (undoNotification) {
+      const timer = setTimeout(() => {
+        useSpootStore.setState({ undoNotification: null });
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [undoNotification]);
 
   // Raccourci clavier universel Ctrl+Z / Cmd+Z pour l'annulation immédiate
   useEffect(() => {
@@ -71,9 +81,9 @@ export const App: React.FC = () => {
       <ProfileEditModal />
       <ListeningHistoryDrawer />
 
-      {/* Snackbar d'annulation (Undo Notification) */}
+      {/* Snackbar d'annulation (Undo Notification) avec auto-dismiss et fermeture rapide */}
       {undoNotification && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#181818] border border-cyan-400/40 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-4 z-50 animate-in slide-in-from-bottom-5 duration-200">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#181818] border border-cyan-400/40 px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 z-50 animate-in slide-in-from-bottom-5 duration-200">
           <span className="text-xs font-bold text-white">{undoNotification.message}</span>
           <button
             onClick={undoNotification.undoAction}
@@ -81,6 +91,13 @@ export const App: React.FC = () => {
           >
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Annuler</span>
+          </button>
+          <button
+            onClick={() => useSpootStore.setState({ undoNotification: null })}
+            className="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+            title="Fermer"
+          >
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}

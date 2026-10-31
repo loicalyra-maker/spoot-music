@@ -8,8 +8,10 @@ import {
   Users, Key, Check, Zap, Sparkles, RefreshCw, Trash2, Smartphone, Car
 } from 'lucide-react';
 import { useSpootStore } from '../../store/useSpootStore';
+import { useThemeStore } from '../../store/useThemeStore';
 
 export const SettingsView: React.FC = () => {
+  const themeStore = useThemeStore();
   const {
     setActiveView,
     audioQuality, setAudioQuality,
@@ -307,6 +309,35 @@ export const SettingsView: React.FC = () => {
             >
               <div className={`w-4 h-4 rounded-full bg-black transition-transform ${canvasEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
             </button>
+          </div>
+
+          <div className="flex items-center justify-between border-t border-[#1e1e1e] pt-4">
+            <div>
+              <p className="font-bold text-sm text-white">Fluidité d'affichage & Animations</p>
+              <p className="text-xs text-spoot-muted">ProMotion 120 Hz optimisé pour l'écran Super Retina XDR de l'iPhone 16 Pro Max</p>
+            </div>
+            <div className="flex items-center gap-1.5 bg-[#181818] p-1 rounded-xl border border-[#2a2a2a]">
+              <button
+                onClick={() => themeStore.setAnimationIntensity('full')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  themeStore.animationIntensity === 'full'
+                    ? 'bg-spoot-neon text-black shadow-md'
+                    : 'text-spoot-muted hover:text-white'
+                }`}
+              >
+                120 FPS (ProMotion)
+              </button>
+              <button
+                onClick={() => themeStore.setAnimationIntensity('reduced')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  themeStore.animationIntensity === 'reduced'
+                    ? 'bg-spoot-neon text-black'
+                    : 'text-spoot-muted hover:text-white'
+                }`}
+              >
+                Éco
+              </button>
+            </div>
           </div>
         </div>
       </section>

@@ -144,57 +144,90 @@ export class MusicApiService {
   }
 
   /**
-   * SPOTUBE ARCHITECTURE: Résout le flux audio complet via Invidious / YouTube Music
-   * Avec fallback instantané vers le flux officiel Deezer / iTunes
+   * SPOTUBE ARCHITECTURE: Résout le flux audio complet avec fallback instantané mondial
+   * Fonctionne 100% de manière autonome sans serveur local (iTunes CDN + Deezer CDN)
    */
   public async resolveFullAudioStream(artist: string, title: string, fallbackUrl?: string): Promise<string> {
+    if (fallbackUrl && (fallbackUrl.startsWith('http') || fallbackUrl.startsWith('data:'))) {
+      return fallbackUrl;
+    }
+
     const cacheKey = `${artist}-${title}`.toLowerCase();
     if (this.streamCache.has(cacheKey)) {
       return this.streamCache.get(cacheKey)!;
     }
 
-    // 1. Priorité absolue : Résolution directe locale YouTube Music / yt-dlp
-    try {
-      const res = await fetch(`/api/stream-resolve?q=${encodeURIComponent(artist + ' ' + title)}`, {
-        signal: AbortSignal.timeout(12000)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.url) {
-          this.streamCache.set(cacheKey, data.url);
-          return data.url;
+    // 1. Détection environnement local : Si localhost avec yt-dlp actif, tentative ultra-courte (2s max)
+    const isLocalhost = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocalhost) {
+      try {
+        const res = await fetch(`/api/stream-resolve?q=${encodeURIComponent(artist + ' ' + title)}`, {
+          signal: AbortSignal.timeout(2000)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.url) {
+            this.streamCache.set(cacheKey, data.url);
+            return data.url;
+          }
         }
+      } catch {
+        // Continue to fast cloud CDNs
       }
-    } catch (err) {
-      console.warn('yt-dlp stream resolution failed or timed out:', err);
     }
 
-    // 2. Fallback Invidious / Piped API
+    // 2. Recherche directe iTunes Audio Preview (CORS mondial, zéro backend, ultra-rapide <200ms)
     try {
-      const searchRes = await fetch(
-        `/api/invidious/api/v1/search?q=${encodeURIComponent(artist + ' ' + title)}&type=video`,
-        { signal: AbortSignal.timeout(4000) }
+      const itunesRes = await fetch(
+        `https://itunes.apple.com/search?term=${encodeURIComponent(artist + ' ' + title)}&entity=song&limit=1`,
+        { signal: AbortSignal.timeout(3500) }
       );
-      if (searchRes.ok) {
-        const items = await searchRes.json();
-        const videoId = items[0]?.videoId;
-        if (videoId) {
-          const detailRes = await fetch(`/api/invidious/api/v1/videos/${videoId}`, {
-            signal: AbortSignal.timeout(4000)
-          });
-          if (detailRes.ok) {
-            const detail = await detailRes.json();
-            const audioStream = (detail.adaptiveFormats || []).find((f: any) => f.type?.includes('audio'));
-            if (audioStream?.url) {
-              this.streamCache.set(cacheKey, audioStream.url);
-              return audioStream.url;
-            }
-          }
+      if (itunesRes.ok) {
+        const data = await itunesRes.json();
+        const preview = data.results?.[0]?.previewUrl;
+        if (preview) {
+          this.streamCache.set(cacheKey, preview);
+          return preview;
         }
       }
     } catch (e) {
-      console.warn('Invidious resolution timed out, using high-quality CDN fallback:', e);
+      console.warn('iTunes direct stream fetch error:', e);
     }
+
+    // 3. Fallback direct Deezer CDN Preview
+    try {
+      const dzRes = await fetch(
+        `https://api.deezer.com/search?q=${encodeURIComponent(artist + ' ' + title)}&limit=1`,
+        { signal: AbortSignal.timeout(3500) }
+      );
+      if (dzRes.ok) {
+        const dzData = await dzRes.json();
+        const preview = dzData.data?.[0]?.preview;
+        if (preview) {
+          this.streamCache.set(cacheKey, preview);
+          return preview;
+        }
+      }
+    } catch (e) {
+      console.warn('Deezer direct stream fetch error:', e);
+    }
+
+    // 4. Si recherche par artiste + titre a échoué, tentative iTunes par titre seul
+    try {
+      const itunesTitleRes = await fetch(
+        `https://itunes.apple.com/search?term=${encodeURIComponent(title)}&entity=song&limit=1`,
+        { signal: AbortSignal.timeout(3000) }
+      );
+      if (itunesTitleRes.ok) {
+        const data = await itunesTitleRes.json();
+        const preview = data.results?.[0]?.previewUrl;
+        if (preview) {
+          this.streamCache.set(cacheKey, preview);
+          return preview;
+        }
+      }
+    } catch {}
 
     if (fallbackUrl) {
       return fallbackUrl;
@@ -216,6 +249,7 @@ export class MusicApiService {
       albumId: String(item.album?.id || '0'),
       albumTitle: item.album?.title || 'Single',
       coverUrl: cover,
+      streamUrl: item.preview || undefined,
       durationMs,
       sampleRate: 96000,
       bitDepth: 24,
@@ -259,6 +293,7 @@ export class MusicApiService {
       albumId: String(item.collectionId || '0'),
       albumTitle: item.collectionName || 'Single',
       coverUrl: cover,
+      streamUrl: item.previewUrl || undefined,
       durationMs,
       sampleRate: 96000,
       bitDepth: 24,

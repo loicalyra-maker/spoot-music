@@ -721,10 +721,10 @@ export const LiveCustomizerDrawer: React.FC = () => {
             </div>
           </div>
 
-          {/* 8. Animations & Fluides 60fps */}
+          {/* 8. Animations & Fluides 120 FPS ProMotion */}
           <div className="space-y-3">
             <span className="text-[11px] font-black uppercase tracking-wider text-white/50 block">
-              Fluidité des Animations
+              Fluidité des Animations (ProMotion 120Hz)
             </span>
 
             <div className="grid grid-cols-3 gap-2">
@@ -732,11 +732,11 @@ export const LiveCustomizerDrawer: React.FC = () => {
                 onClick={() => themeStore.setAnimationIntensity('full')}
                 className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer text-center ${
                   displayedConfig.animationIntensity === 'full'
-                    ? 'bg-cyan-500/20 border-cyan-400 text-white'
+                    ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-[0_0_15px_rgba(6,182,212,0.3)]'
                     : 'bg-white/[0.03] border-white/[0.08] text-white/60 hover:text-white'
                 }`}
               >
-                Fluide 60fps
+                Fluide 120 FPS
               </button>
               <button
                 onClick={() => themeStore.setAnimationIntensity('reduced')}

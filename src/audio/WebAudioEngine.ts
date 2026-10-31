@@ -122,9 +122,9 @@ export class WebAudioEngine {
     this.isPaused = false;
     this.isSeeking = false;
 
-    // Détermine le flux audio réel complet (YouTube Music / yt-dlp haute qualité)
+    // Détermine le flux audio réel (CDN iTunes / Deezer / YouTube Music)
     let streamUrl = track.streamUrl;
-    if (!streamUrl || !streamUrl.startsWith('/api/stream-audio')) {
+    if (!streamUrl || (!streamUrl.startsWith('http') && !streamUrl.startsWith('/api/stream-audio'))) {
       streamUrl = await musicApi.resolveFullAudioStream(track.artistName, track.title, track.streamUrl);
       if (streamUrl) {
         track.streamUrl = streamUrl;
