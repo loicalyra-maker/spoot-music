@@ -1,13 +1,13 @@
 // Spoot Music — Immersive Spotify/Apple Now Playing Canvas View (ExpandedPlayer.tsx)
-// Faithful reproduction of reference screenshot (media_1793404020949_957af945.png)
-// Supports edge-to-edge Artwork / Video Canvas, Sleek Timeline with negative remaining time,
-// Crisp White circular Play/Pause button, Green Checkmark library badge, and Bottom Crédits Drawer.
+// Faithful reproduction of reference screenshots (media_1793404020949_957af945.png & user capture)
+// Full-bleed Canvas (Video/Artwork), edge-to-edge typography, sleek timeline with negative remaining time,
+// crisp solid white circular play button, green library checkmark badge, and bottom Paroles/Crédits cards.
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
   ChevronDown, MoreHorizontal, Play, Pause, SkipBack, SkipForward,
-  Shuffle, Repeat, Repeat1, Check, Plus, Laptop2, Share2, ListMusic,
-  Sliders, Mic2, ShieldAlert, Sparkles, X, Heart, Maximize2
+  Shuffle, Repeat, Repeat1, Check, Plus, Speaker, ListMusic,
+  Sliders, Mic2, ShieldAlert, X, Maximize2
 } from 'lucide-react';
 import { useSpootStore } from '../../store/useSpootStore';
 import { deezerService } from '../../services/deezer_service';
@@ -140,20 +140,45 @@ export const ExpandedPlayer: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-between pt-[max(env(safe-area-inset-top)+12px,52px)] pb-[max(env(safe-area-inset-bottom)+12px,32px)] px-6 sm:px-8 select-none overflow-y-auto no-scrollbar animate-in fade-in duration-200 bg-[#050608]"
+      className="fixed inset-0 z-50 flex flex-col justify-between bg-[#080808] text-white select-none overflow-y-auto no-scrollbar animate-in fade-in duration-200"
       style={{
-        background: `radial-gradient(circle at 50% 15%, ${currentTrack.palette?.primary || '#134e4a'}65 0%, #0b0f14 55%, #050608 100%)`,
+        backgroundColor: '#0a0a0c',
       }}
     >
-      {/* 1. TOP HEADER (Chevron Down, Artist Name, More Options) */}
-      <div className="w-full max-w-md mx-auto flex items-center justify-between py-1 relative z-10">
+      {/* 0. FULL-BLEED CANVAS LAYER (Video if available or Cover Art Canvas with ambient gradient overlays) */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        {currentTrack.canvasUrl ? (
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            src={currentTrack.canvasUrl}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <img
+            src={coverSrc}
+            alt={currentTrack.title}
+            onError={() => setImageError(true)}
+            className="w-full h-[72vh] sm:h-[76vh] object-cover object-center filter"
+          />
+        )}
+        {/* Ombre supérieure douce sous la barre de navigation */}
+        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
+        {/* Fondu inférieur progressif vers le noir pour les contrôles et paroles */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/90 via-42% to-transparent" />
+      </div>
+
+      {/* 1. TOP HEADER (Chevron Down, Artist Name in clean uppercase tracking, More Options) */}
+      <div className="w-full max-w-md mx-auto pt-[max(env(safe-area-inset-top)+10px,48px)] px-6 pb-2 flex items-center justify-between relative z-10">
         <button
           onClick={() => setExpandedPlayerOpen(false)}
-          className="w-10 h-10 flex items-center justify-center text-white/80 hover:text-white active:scale-90 transition-transform cursor-pointer"
+          className="w-10 h-10 -ml-2 flex items-center justify-center text-white/90 hover:text-white active:scale-90 transition-transform cursor-pointer"
           aria-label="Réduire le lecteur"
           title="Réduire"
         >
-          <ChevronDown className="w-7 h-7 stroke-[2.2]" />
+          <ChevronDown className="w-7 h-7 stroke-[2.4]" />
         </button>
 
         <button
@@ -161,14 +186,14 @@ export const ExpandedPlayer: React.FC = () => {
             setExpandedPlayerOpen(false);
             if (currentTrack.artistId) openArtist(currentTrack.artistId);
           }}
-          className="text-xs sm:text-sm font-extrabold text-white tracking-widest uppercase hover:underline truncate max-w-[220px] text-center cursor-pointer"
+          className="text-xs font-bold text-white/90 tracking-widest uppercase hover:underline truncate max-w-[220px] text-center cursor-pointer"
         >
           {currentTrack.artistName}
         </button>
 
         <button
-          onClick={() => setOptionsMenuOpen(!optionsMenuOpen)}
-          className="w-10 h-10 flex items-center justify-center text-white/80 hover:text-white active:scale-90 transition-transform cursor-pointer"
+          onClick={() => setOptionsMenuOpen(true)}
+          className="w-10 h-10 -mr-2 flex items-center justify-center text-white/90 hover:text-white active:scale-90 transition-transform cursor-pointer"
           aria-label="Options"
           title="Plus d'options"
         >
@@ -176,9 +201,9 @@ export const ExpandedPlayer: React.FC = () => {
         </button>
       </div>
 
-      {/* Options Popup Menu */}
+      {/* Options Popup Modal */}
       {optionsMenuOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-150">
           <div className="bg-[#181818] border border-white/15 rounded-3xl p-5 max-w-sm w-full space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <div>
@@ -223,7 +248,11 @@ export const ExpandedPlayer: React.FC = () => {
                 }}
                 className="w-full flex items-center gap-3 p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] text-white text-xs font-bold text-left transition-colors"
               >
-                <Share2 className="w-4 h-4 text-cyan-300" />
+                <svg className="w-4 h-4 text-cyan-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+                  <polyline points="16 6 12 2 8 6" />
+                  <line x1="12" y1="2" x2="12" y2="15" />
+                </svg>
                 <span>Partager ce titre</span>
               </button>
 
@@ -242,34 +271,14 @@ export const ExpandedPlayer: React.FC = () => {
         </div>
       )}
 
-      {/* 2. MAIN ARTWORK / VIDEO CANVAS (Takes the central stage with rounded corners) */}
-      <div className="w-full max-w-md mx-auto my-auto flex items-center justify-center py-2 sm:py-4">
-        <div className="relative aspect-[3/4] sm:aspect-[4/5] w-full max-h-[50vh] sm:max-h-[54vh] rounded-3xl overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.85)] border border-white/10 bg-[#0d1319] group">
-          <img
-            src={coverSrc}
-            alt={currentTrack.title}
-            loading="eager"
-            decoding="async"
-            onError={() => setImageError(true)}
-            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-          />
+      {/* 2. MAIN CANVAS BREATHING SPACE (Showcases the full artwork / video uninterrupted) */}
+      <div className="w-full max-w-md mx-auto flex-1 min-h-[30vh] sm:min-h-[38vh] relative z-10 flex items-center justify-center pointer-events-none" />
 
-          {/* Subtile lueur spéculaire haute */}
-          <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-black/20 via-transparent to-black/60" />
-
-          {/* Badge format Hi-Res en superposition subtile */}
-          <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/15 text-[10px] font-mono font-bold text-cyan-300 flex items-center gap-1.5 shadow-md">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            <span>Hi-Res Lossless</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. TRACK INFO & GREEN CHECKMARK (Directly below Artwork) */}
-      <div className="w-full max-w-md mx-auto flex items-center justify-between gap-4 pt-2">
+      {/* 3. TRACK INFO & GREEN CHECKMARK CIRCLE (Exact match with reference screenshot) */}
+      <div className="w-full max-w-md mx-auto px-6 relative z-10 flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1
-            className="text-xl sm:text-2xl font-black text-white tracking-tight leading-snug truncate"
+            className="text-2xl sm:text-[26px] font-black text-white tracking-tight leading-tight truncate"
             title={currentTrack.title}
           >
             {currentTrack.title}
@@ -279,13 +288,13 @@ export const ExpandedPlayer: React.FC = () => {
               setExpandedPlayerOpen(false);
               if (currentTrack.artistId) openArtist(currentTrack.artistId);
             }}
-            className="text-sm font-semibold text-white/70 hover:text-white truncate block text-left mt-0.5 cursor-pointer transition-colors"
+            className="text-sm sm:text-base font-semibold text-white/70 hover:text-white truncate block text-left mt-1 cursor-pointer transition-colors"
           >
             {currentTrack.artistName}
           </button>
         </div>
 
-        {/* Spotify Green Filled Checkmark Circle (Exact match with reference screenshot) */}
+        {/* Spotify Green Filled Checkmark Circle (Right of title/artist) */}
         <button
           onClick={() => toggleFavorite(currentTrack.id)}
           className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shrink-0 shadow-md active:scale-90 transition-transform cursor-pointer ${
@@ -297,15 +306,15 @@ export const ExpandedPlayer: React.FC = () => {
           aria-label={currentTrack.isFavorite ? 'Enregistré' : 'Ajouter'}
         >
           {currentTrack.isFavorite ? (
-            <Check className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3.2]" />
+            <Check className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3.4]" />
           ) : (
             <Plus className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
           )}
         </button>
       </div>
 
-      {/* 4. TIMELINE SCRUBBER (Thin bar with elapsed time & negative remaining time) */}
-      <div className="w-full max-w-md mx-auto pt-3 space-y-1.5">
+      {/* 4. TIMELINE SCRUBBER (Thin bar with elapsed time on left & negative remaining time on right) */}
+      <div className="w-full max-w-md mx-auto px-6 pt-3.5 space-y-1.5 relative z-10">
         <div
           ref={timelineRef}
           onClick={handleTimelineClick}
@@ -331,14 +340,14 @@ export const ExpandedPlayer: React.FC = () => {
         </div>
 
         {/* Horodateurs : Temps écoulé à gauche, Temps restant négatif à droite (-4:15) */}
-        <div className="flex items-center justify-between text-[11px] font-mono font-medium text-white/60">
+        <div className="flex items-center justify-between text-xs font-medium text-white/60">
           <span>{formatTime(currentPos)}</span>
           <span>-{formatTime(remainingMs)}</span>
         </div>
       </div>
 
-      {/* 5. MAIN PLAYBACK CONTROLS (Shuffle, Prev, Big White Play/Pause Circle, Next, Repeat) */}
-      <div className="w-full max-w-md mx-auto flex items-center justify-between py-2 px-1">
+      {/* 5. MAIN PLAYBACK CONTROLS (Shuffle, Prev, Giant White Circular Play/Pause, Next, Repeat) */}
+      <div className="w-full max-w-md mx-auto px-6 py-2 flex items-center justify-between relative z-10">
         {/* Shuffle */}
         <button
           onClick={() => {
@@ -365,7 +374,7 @@ export const ExpandedPlayer: React.FC = () => {
           <SkipBack className="w-7 h-7 fill-white stroke-[1]" />
         </button>
 
-        {/* Big White Circular Play/Pause Button (Exact screenshot center piece) */}
+        {/* Big White Circular Play/Pause Button (Exact match with reference screenshot) */}
         <button
           onClick={togglePlayPause}
           className="w-16 h-16 sm:w-18 sm:h-18 rounded-full bg-white text-black flex items-center justify-center shadow-[0_8px_30px_rgba(0,0,0,0.6)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
@@ -375,7 +384,7 @@ export const ExpandedPlayer: React.FC = () => {
           {isPlaying ? (
             <Pause className="w-7 h-7 sm:w-8 sm:h-8 fill-black stroke-[1]" />
           ) : (
-            <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-black stroke-[1] ml-1" />
+            <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-black stroke-[1] ml-0.5" />
           )}
         </button>
 
@@ -410,23 +419,28 @@ export const ExpandedPlayer: React.FC = () => {
         </button>
       </div>
 
-      {/* 6. BOTTOM UTILITIES ROW (Device Picker, Share, Queue / Lyrics) */}
-      <div className="w-full max-w-md mx-auto flex items-center justify-between text-white/70 pt-1 px-1">
+      {/* 6. BOTTOM UTILITIES ROW (Airplay/Device, Share, Queue / Lyrics) */}
+      <div className="w-full max-w-md mx-auto px-6 py-1 flex items-center justify-between text-white/70 relative z-10">
         <button
           onClick={() => setDevicePickerOpen(true)}
-          className="p-2 hover:text-white active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+          className="p-2 -ml-2 hover:text-white active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
           title="Appareils disponibles (Spoot Connect)"
         >
-          <Laptop2 className="w-5 h-5" />
+          <Speaker className="w-5 h-5 stroke-[2]" />
         </button>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 -mr-2">
+          {/* iOS / Spotify Style Share Icon (Square with up arrow) */}
           <button
             onClick={handleShare}
             className="p-2 hover:text-white active:scale-95 transition-all cursor-pointer relative"
             title="Partager"
           >
-            <Share2 className="w-5 h-5" />
+            <svg className="w-5 h-5 stroke-[2]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+              <polyline points="16 6 12 2 8 6" />
+              <line x1="12" y1="2" x2="12" y2="15" />
+            </svg>
             {copiedShare && (
               <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-white text-black text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">
                 Copié !
@@ -437,18 +451,19 @@ export const ExpandedPlayer: React.FC = () => {
           <button
             onClick={() => setLyricsOpen(true)}
             className="p-2 hover:text-white active:scale-95 transition-all cursor-pointer"
-            title="Paroles synchronisées"
+            title="File d'attente & Paroles"
           >
-            <ListMusic className="w-5 h-5" />
+            <ListMusic className="w-5 h-5 stroke-[2]" />
           </button>
         </div>
       </div>
 
-      {/* 7. PAROLES SYNCHRONISÉES (Carte interactive placée immédiatement avant les Crédits) */}
-      <div className="w-full max-w-md mx-auto pt-3">
+      {/* 7. BOTTOM CARDS : PAROLES SYNCHRONISÉES PUIS CRÉDITS (Comme dans la capture de référence) */}
+      <div className="w-full max-w-md mx-auto px-6 pt-3 pb-[max(env(safe-area-inset-bottom)+12px,28px)] space-y-3 relative z-10">
+        {/* Carte interactive Paroles synchronisées (placée immédiatement avant les Crédits) */}
         <div
           onClick={() => setLyricsOpen(true)}
-          className="w-full rounded-2xl bg-gradient-to-b from-[#222224]/95 to-[#161618]/95 hover:from-[#2a2a2d] hover:to-[#1c1c1f] border border-white/10 p-4 cursor-pointer transition-all shadow-xl backdrop-blur-xl group"
+          className="w-full rounded-2xl bg-[#222224]/90 hover:bg-[#28282b] border border-white/10 p-4 cursor-pointer transition-all shadow-xl backdrop-blur-xl group"
         >
           <div className="flex items-center justify-between pb-2 border-b border-white/5">
             <div className="flex items-center gap-2">
@@ -474,7 +489,7 @@ export const ExpandedPlayer: React.FC = () => {
           {/* Défilement en direct des paroles synchronisées avec mise en valeur de la ligne active */}
           <div
             ref={lyricsPreviewContainerRef}
-            className="mt-3 max-h-32 overflow-y-auto space-y-2.5 scrollbar-none pr-1 select-none"
+            className="mt-3 max-h-28 overflow-y-auto space-y-2.5 scrollbar-none pr-1 select-none"
           >
             {lyrics.length > 0 ? (
               lyrics.map((line, idx) => {
@@ -489,7 +504,7 @@ export const ExpandedPlayer: React.FC = () => {
                     }}
                     className={`transition-all duration-300 cursor-pointer rounded-lg px-2.5 py-1.5 ${
                       isActive
-                        ? 'text-white font-extrabold text-base scale-[1.02] bg-white/[0.08] shadow-[0_0_20px_rgba(30,215,96,0.18)] border-l-2 border-[#1ed760]'
+                        ? 'text-white font-extrabold text-base scale-[1.01] bg-white/[0.08] shadow-[0_0_20px_rgba(30,215,96,0.18)] border-l-2 border-[#1ed760]'
                         : 'text-white/45 hover:text-white/80 font-medium text-xs sm:text-sm hover:bg-white/[0.03]'
                     }`}
                   >
@@ -507,13 +522,11 @@ export const ExpandedPlayer: React.FC = () => {
             )}
           </div>
         </div>
-      </div>
 
-      {/* 8. BOTTOM PEEKING CARD ("Crédits" Drawer as shown in screenshot) */}
-      <div className="w-full max-w-md mx-auto pt-3">
+        {/* Carte Peeking "Crédits" (Exacte reproduction de la carte inférieure de la capture de référence) */}
         <div
           onClick={() => setCreditsExpanded(!creditsExpanded)}
-          className="w-full rounded-2xl bg-[#181818]/90 hover:bg-[#202020] border border-white/10 p-4 cursor-pointer transition-all shadow-lg backdrop-blur-xl"
+          className="w-full rounded-2xl bg-[#1e1e1e]/95 hover:bg-[#252525] border border-white/10 p-4 cursor-pointer transition-all shadow-lg backdrop-blur-xl"
         >
           <div className="flex items-center justify-between">
             <h3 className="font-extrabold text-sm text-white">Crédits</h3>
@@ -522,12 +535,11 @@ export const ExpandedPlayer: React.FC = () => {
             </span>
           </div>
 
-          {/* Contenu rétractable ou aperçu */}
           {!creditsExpanded ? (
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5 text-xs text-white/60">
               <span className="truncate">{currentTrack.artistName} • {currentTrack.albumTitle}</span>
               <span className="text-[11px] font-mono text-cyan-300 shrink-0 ml-2">
-                {currentTrack.formatLabel ? 'Hi-Res 24-bit' : 'FLAC'}
+                {currentTrack.formatLabel ? 'Hi-Res Lossless' : 'FLAC'}
               </span>
             </div>
           ) : (
@@ -541,7 +553,7 @@ export const ExpandedPlayer: React.FC = () => {
                 <span className="font-bold text-white">{currentTrack.albumTitle}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-white/50">Format Audio Réel</span>
+                <span className="text-white/50">Format Audio</span>
                 <span className="font-mono text-cyan-300 font-bold">{currentTrack.formatLabel || 'Hi-Res Lossless 24-bit / 96 kHz FLAC'}</span>
               </div>
               <div className="flex items-center justify-between">

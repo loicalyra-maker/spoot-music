@@ -58,6 +58,7 @@ export interface Track {
   audioGenSeed?: number;   // Seed for procedural high-fidelity web synthesizer
   isExplicit?: boolean;
   hasVideo?: boolean;
+  canvasUrl?: string;
   isInstrumental?: boolean;
 }
 
