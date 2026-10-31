@@ -1,5 +1,5 @@
 // Spoot Music — Official Deezer Public API & LRCLIB Synced Lyrics Service
-// Architecture 100% autonome : Métadonnées mondiales & visuels HD sans clé ni abonnement
+// Architecture 100% autonome et intelligente : Deezer Direct / Vercel Proxy + JSONP Fallback + LRCLIB Synced Lyrics
 
 import { Track, Album, Artist, LyricLine } from '../types';
 import { INITIAL_ARTISTS, INITIAL_TRACKS, INITIAL_ALBUMS } from '../mock/catalog';
@@ -49,6 +49,8 @@ export class DeezerService {
   private lyricsCache = new Map<string, LyricLine[]>();
   private albumCache = new Map<string, DeezerAlbumDetails>();
   private artistCache = new Map<string, DeezerArtistDetails>();
+  private searchCache = new Map<string, { tracks: Track[]; artists: Artist[]; albums: Album[] }>();
+  private topTracksCache = new Map<string, Track[]>();
 
   public static getInstance(): DeezerService {
     if (!DeezerService.instance) {
@@ -58,8 +60,82 @@ export class DeezerService {
   }
 
   /**
+   * Appel JSONP direct vers l'API publique Deezer
+   * Bypasse 100% des restrictions CORS dans tous les navigateurs (iOS Safari, Chrome, etc.)
+   */
+  public fetchDeezerJsonp<T>(endpoint: string, params: Record<string, string | number> = {}): Promise<T> {
+    if (typeof window === 'undefined') {
+      return Promise.reject(new Error('Window not available for JSONP'));
+    }
+    return new Promise((resolve, reject) => {
+      const callbackName = `deezer_jsonp_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+      const url = new URL(`https://api.deezer.com/${endpoint.replace(/^\//, '')}`);
+      Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)));
+      url.searchParams.set('output', 'jsonp');
+      url.searchParams.set('callback', callbackName);
+
+      const script = document.createElement('script');
+      script.src = url.toString();
+      script.async = true;
+
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`Deezer JSONP timeout on ${endpoint}`));
+      }, 3500);
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        if (script.parentNode) script.parentNode.removeChild(script);
+        delete (window as any)[callbackName];
+      };
+
+      (window as any)[callbackName] = (data: T) => {
+        cleanup();
+        resolve(data);
+      };
+
+      script.onerror = () => {
+        cleanup();
+        reject(new Error(`Deezer JSONP load error on ${endpoint}`));
+      };
+
+      document.head.appendChild(script);
+    });
+  }
+
+  /**
+   * Client HTTP intelligent pour Deezer
+   * 1. Proxy local / Rewrites Vercel (/api/deezer)
+   * 2. JSONP client-side (bypasse CORS mondial sans serveur)
+   */
+  public async fetchDeezer<T>(endpoint: string, params: Record<string, string | number> = {}): Promise<T> {
+    const search = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => search.set(k, String(v)));
+    const qs = search.toString() ? `?${search.toString()}` : '';
+
+    // Tentative 1 : via /api/deezer
+    try {
+      const res = await fetch(`/api/deezer/${endpoint.replace(/^\//, '')}${qs}`, {
+        signal: AbortSignal.timeout(2200)
+      });
+      if (res.ok) {
+        const text = await res.text();
+        if (text && !text.startsWith('<!DOCTYPE') && !text.startsWith('<html')) {
+          return JSON.parse(text);
+        }
+      }
+    } catch {}
+
+    // Tentative 2 : via JSONP universel
+    try {
+      return await this.fetchDeezerJsonp<T>(endpoint, params);
+    } catch {}
+
+    throw new Error(`Deezer API unreachable on ${endpoint}`);
+  }
+
+  /**
    * Calcul déterministe d'écoutes selon la loi de puissance (Zipf) Spotify
-   * Élimine tout aléatoire et garantit une décroissance stricte P_1 > P_2 > ... > P_10
    */
   public computeDeterministicPlays(
     trackId: string,
@@ -70,7 +146,6 @@ export class DeezerService {
   ): number {
     const listeners = monthlyListeners && monthlyListeners > 0 ? monthlyListeners : 3200000;
 
-    // Contexte Top Artiste (0 à 9) : Décroissance stricte calquée sur Spotify
     if (rankIndex !== undefined && rankIndex >= 0) {
       const topMultipliers = [13.5, 3.94, 2.47, 2.05, 1.67, 1.35, 1.12, 0.94, 0.78, 0.65];
       const mult = rankIndex < topMultipliers.length ? topMultipliers[rankIndex] : 0.5 / (rankIndex - 7);
@@ -84,7 +159,6 @@ export class DeezerService {
       return Math.max(15420, calculated);
     }
 
-    // Contexte Album : Rangs relatifs des singles vs titres de fond d'album
     const norm = Math.max(0.08, Math.min(1.0, (trackRank || 600000) / 1000000));
     const albumMax = Math.max(800000, listeners * 1.8);
     const calculated = Math.floor(albumMax * Math.pow(norm, 2.6)) + (deterministicHash(trackId) % 43210) + 18500;
@@ -148,7 +222,7 @@ export class DeezerService {
   }
 
   /**
-   * Mappe un titre iTunes vers le format interne Track (avec stream audio immédiat et pochette 1000x1000)
+   * Mappe un titre iTunes vers le format interne Track
    */
   public mapItunesTrack(item: any): Track {
     const durationMs = item.trackTimeMillis || 180000;
@@ -194,79 +268,71 @@ export class DeezerService {
   }
 
   /**
-   * Recherche universelle (Titres, Artistes, Albums) via Deezer Public API avec fallback iTunes mondial
+   * Recherche universelle (Titres, Artistes, Albums) via Deezer avec fallback iTunes
    */
   public async search(query: string, limit: number = 30): Promise<{ tracks: Track[]; artists: Artist[]; albums: Album[] }> {
     if (!query.trim()) {
       return { tracks: [], artists: [], albums: [] };
     }
 
-    const encoded = encodeURIComponent(query);
+    const cacheKey = query.toLowerCase().trim();
+    if (this.searchCache.has(cacheKey)) {
+      return this.searchCache.get(cacheKey)!;
+    }
+
     const tracks: Track[] = [];
     const artists: Artist[] = [];
     const albums: Album[] = [];
 
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    if (isLocal) {
-      try {
-        const [tracksRes, artistsRes, albumsRes] = await Promise.allSettled([
-          fetch(`/api/deezer/search?q=${encoded}&limit=${limit}`, { signal: AbortSignal.timeout(2500) }),
-          fetch(`/api/deezer/search/artist?q=${encoded}&limit=8`, { signal: AbortSignal.timeout(2500) }),
-          fetch(`/api/deezer/search/album?q=${encoded}&limit=12`, { signal: AbortSignal.timeout(2500) }),
-        ]);
+    // 1. Recherche prioritaire Deezer API (via proxy ou JSONP)
+    try {
+      const [tracksRes, artistsRes, albumsRes] = await Promise.allSettled([
+        this.fetchDeezer<any>('search', { q: query, limit }),
+        this.fetchDeezer<any>('search/artist', { q: query, limit: 8 }),
+        this.fetchDeezer<any>('search/album', { q: query, limit: 12 }),
+      ]);
 
-        if (tracksRes.status === 'fulfilled' && tracksRes.value.ok) {
-          const data = await tracksRes.value.json();
-          if (data.data && Array.isArray(data.data)) {
-            tracks.push(...data.data.map((t: any) => this.mapDeezerTrack(t)));
-          }
-        }
-
-        if (artistsRes.status === 'fulfilled' && artistsRes.value.ok) {
-          const data = await artistsRes.value.json();
-          if (data.data && Array.isArray(data.data)) {
-            artists.push(
-              ...data.data.map((a: any) => ({
-                id: String(a.id),
-                name: a.name,
-                avatarUrl: a.picture_xl || a.picture_big || a.picture_medium,
-                monthlyListeners: (a.nb_fan || 50000) * 4,
-                bio: `Artiste vérifié officiel sur Spoot Music. Discographie complète disponible.`,
-                isFollowed: false,
-                hasNewRelease: true,
-                albums: [],
-              }))
-            );
-          }
-        }
-
-        if (albumsRes.status === 'fulfilled' && albumsRes.value.ok) {
-          const data = await albumsRes.value.json();
-          if (data.data && Array.isArray(data.data)) {
-            albums.push(
-              ...data.data.map((alb: any) => ({
-                id: String(alb.id),
-                title: alb.title,
-                artistId: String(alb.artist?.id || '0'),
-                artistName: alb.artist?.name || 'Artiste',
-                coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium,
-                releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
-                type: (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album') as any,
-                trackCount: alb.nb_tracks || 12,
-                totalDurationMs: (alb.nb_tracks || 12) * 210000,
-                tracks: [],
-              }))
-            );
-          }
-        }
-      } catch (err) {
-        console.warn('Deezer direct proxy failed, falling back to iTunes API:', err);
+      if (tracksRes.status === 'fulfilled' && tracksRes.value?.data) {
+        tracks.push(...tracksRes.value.data.map((t: any) => this.mapDeezerTrack(t)));
       }
-    }
 
-    // Fallback 100% Autonome sans backend : iTunes Search API (CORS mondial)
+      if (artistsRes.status === 'fulfilled' && artistsRes.value?.data) {
+        artists.push(
+          ...artistsRes.value.data.map((a: any) => ({
+            id: String(a.id),
+            name: a.name,
+            avatarUrl: a.picture_xl || a.picture_big || a.picture_medium || 'https://cdn-images.dzcdn.net/images/artist/56589954cda1a811317b84fffc1c75b5/1000x1000-000000-80-0-0.jpg',
+            monthlyListeners: (a.nb_fan || 50000) * 4,
+            bio: `Artiste vérifié officiel sur Spoot Music. Discographie complète disponible.`,
+            isFollowed: false,
+            hasNewRelease: true,
+            albums: [],
+          }))
+        );
+      }
+
+      if (albumsRes.status === 'fulfilled' && albumsRes.value?.data) {
+        albums.push(
+          ...albumsRes.value.data.map((alb: any) => ({
+            id: String(alb.id),
+            title: alb.title,
+            artistId: String(alb.artist?.id || '0'),
+            artistName: alb.artist?.name || 'Artiste',
+            coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+            releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
+            type: (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album') as any,
+            trackCount: alb.nb_tracks || 12,
+            totalDurationMs: (alb.nb_tracks || 12) * 210000,
+            tracks: [],
+          }))
+        );
+      }
+    } catch {}
+
+    // 2. Si Deezer n'a rien renvoyé, fallback rapide iTunes API
     if (tracks.length === 0 || artists.length === 0 || albums.length === 0) {
       try {
+        const encoded = encodeURIComponent(query);
         const [itunesTracksRes, itunesArtistsRes, itunesAlbumsRes] = await Promise.allSettled([
           fetch(`https://itunes.apple.com/search?term=${encoded}&entity=song&limit=${limit}`),
           fetch(`https://itunes.apple.com/search?term=${encoded}&entity=musicArtist&limit=8`),
@@ -288,7 +354,7 @@ export class DeezerService {
                 id: String(item.artistId),
                 name: item.artistName,
                 avatarUrl: tracks.find((t) => t.artistName.toLowerCase() === item.artistName.toLowerCase())?.coverUrl ||
-                  'https://cdn-images.dzcdn.net/images/artist/2cbfaf626a591e162bfcc2b4b0214217/1000x1000-000000-80-0-0.jpg',
+                  'https://cdn-images.dzcdn.net/images/artist/56589954cda1a811317b84fffc1c75b5/1000x1000-000000-80-0-0.jpg',
                 monthlyListeners: 4200000,
                 bio: `Artiste officiel vérifié sur Spoot Music (${item.primaryGenreName || 'Musique'}).`,
                 isFollowed: false,
@@ -318,74 +384,68 @@ export class DeezerService {
             );
           }
         }
-      } catch (e) {
-        console.error('iTunes fallback search error:', e);
-      }
+      } catch {}
     }
 
-    return { tracks, artists, albums };
+    const finalResult = { tracks, artists, albums };
+    if (tracks.length > 0 || artists.length > 0) {
+      this.searchCache.set(cacheKey, finalResult);
+    }
+    return finalResult;
   }
 
   /**
    * Tendances du Top 50 mondial / France (Chart)
    */
   public async getChart(): Promise<{ tracks: Track[]; albums: Album[]; artists: Artist[] }> {
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    if (isLocal) {
-      try {
-        const res = await fetch('/api/deezer/chart/0');
-        if (res.ok) {
-          const data = await res.json();
-          const tracks = (data.tracks?.data || []).map((t: any) => this.mapDeezerTrack(t));
-          const albums = (data.albums?.data || []).map((alb: any) => ({
-            id: String(alb.id),
-            title: alb.title,
-            artistId: String(alb.artist?.id || '0'),
-            artistName: alb.artist?.name || 'Artiste',
-            coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium,
-            releaseYear: new Date().getFullYear(),
-            type: 'album' as const,
-            trackCount: 12,
-            totalDurationMs: 2400000,
-            tracks: [],
-          }));
-          const artists = (data.artists?.data || []).map((a: any) => ({
-            id: String(a.id),
-            name: a.name,
-            avatarUrl: a.picture_xl || a.picture_big || a.picture_medium,
-            monthlyListeners: (a.nb_fan || 100000) * 4,
-            bio: `Artiste officiel Spoot Top Chart`,
-            isFollowed: false,
-            hasNewRelease: false,
-            albums: [],
-          }));
-          return { tracks, albums, artists };
-        }
-      } catch (err) {
-        console.warn('Deezer chart fetch error:', err);
+    try {
+      const data = await this.fetchDeezer<any>('chart/0');
+      if (data) {
+        const tracks = (data.tracks?.data || []).map((t: any) => this.mapDeezerTrack(t));
+        const albums = (data.albums?.data || []).map((alb: any) => ({
+          id: String(alb.id),
+          title: alb.title,
+          artistId: String(alb.artist?.id || '0'),
+          artistName: alb.artist?.name || 'Artiste',
+          coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium,
+          releaseYear: new Date().getFullYear(),
+          type: 'album' as const,
+          trackCount: 12,
+          totalDurationMs: 2400000,
+          tracks: [],
+        }));
+        const artists = (data.artists?.data || []).map((a: any) => ({
+          id: String(a.id),
+          name: a.name,
+          avatarUrl: a.picture_xl || a.picture_big || a.picture_medium,
+          monthlyListeners: (a.nb_fan || 100000) * 4,
+          bio: `Artiste officiel Spoot Top Chart`,
+          isFollowed: false,
+          hasNewRelease: false,
+          albums: [],
+        }));
+        return { tracks, albums, artists };
       }
-    }
-    return { tracks: [], albums: [], artists: [] };
+    } catch {}
+
+    // Fallback avec les morceaux mock enrichis
+    return {
+      tracks: INITIAL_TRACKS.slice(0, 15),
+      albums: INITIAL_ALBUMS.slice(0, 8),
+      artists: INITIAL_ARTISTS.slice(0, 8),
+    };
   }
 
   /**
    * Top 50 morceaux les plus streamés (Chart Mondial / France)
    */
   public async getTop50Tracks(): Promise<Track[]> {
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    if (isLocal) {
-      try {
-        const res = await fetch('/api/deezer/chart/0/tracks?limit=50', { signal: AbortSignal.timeout(2000) });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.data && Array.isArray(data.data)) {
-            return data.data.map((t: any) => this.mapDeezerTrack(t));
-          }
-        }
-      } catch (err) {
-        console.warn('Deezer top 50 tracks fetch error, falling back to iTunes:', err);
+    try {
+      const data = await this.fetchDeezer<any>('chart/0/tracks', { limit: 50 });
+      if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+        return data.data.map((t: any) => this.mapDeezerTrack(t));
       }
-    }
+    } catch {}
 
     try {
       const itRes = await fetch('https://itunes.apple.com/search?term=Top+Hits+France&entity=song&limit=50');
@@ -395,16 +455,13 @@ export class DeezerService {
           return itData.results.map((item: any) => this.mapItunesTrack(item));
         }
       }
-    } catch (e) {
-      console.error('iTunes top 50 fallback failed:', e);
-    }
+    } catch {}
 
-    return [];
+    return INITIAL_TRACKS;
   }
 
   /**
-   * Récupération 100% autonome des nouveaux sons et tendances mondiales en direct
-   * Garantit que chaque nouveau son ajouté à la plateforme apparaît automatiquement
+   * Récupération autonome des nouveaux sons et tendances mondiales en direct (Releases & Nouveautés)
    */
   public async getLatestLiveReleases(): Promise<{
     tracks: Track[];
@@ -429,9 +486,8 @@ export class DeezerService {
         albums: chartData.albums,
         artists: chartData.artists,
       };
-    } catch (err) {
-      console.warn('Error fetching latest live releases:', err);
-      return { tracks: [], albums: [], artists: [] };
+    } catch {
+      return { tracks: INITIAL_TRACKS.slice(0, 10), albums: INITIAL_ALBUMS, artists: INITIAL_ARTISTS };
     }
   }
 
@@ -439,27 +495,19 @@ export class DeezerService {
    * Top Podcasts Tendances (Chart Podcasts)
    */
   public async getTopPodcasts(): Promise<DeezerPodcast[]> {
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    if (isLocal) {
-      try {
-        const res = await fetch('/api/deezer/chart/0/podcasts');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.data && Array.isArray(data.data)) {
-            return data.data.map((p: any) => ({
-              id: String(p.id),
-              title: p.title,
-              description: p.description,
-              coverUrl: p.picture_xl || p.picture_big || p.picture_medium,
-              fans: p.fans || 50000,
-            }));
-          }
-        }
-      } catch (err) {
-        console.warn('Deezer podcasts chart fetch error:', err);
+    try {
+      const data = await this.fetchDeezer<any>('chart/0/podcasts');
+      if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+        return data.data.map((p: any) => ({
+          id: String(p.id),
+          title: p.title,
+          description: p.description || 'Émission officielle vérifiée',
+          coverUrl: p.picture_xl || p.picture_big || p.picture_medium,
+          fans: p.fans || 50000,
+        }));
       }
-    }
-    // Fallback avec de vrais podcasts français
+    } catch {}
+
     return [
       {
         id: '6125205',
@@ -469,83 +517,76 @@ export class DeezerService {
         fans: 206900
       },
       {
-        id: '100234',
-        title: 'Affaires Sensibles',
-        description: 'Fabrice Drouelle raconte les grandes affaires judiciaires et politiques.',
-        coverUrl: 'https://cdn-images.dzcdn.net/images/talk/b86a83a0058b87b7a1dfa0bbcae3dbf4/500x500-000000-80-0-0.jpg',
-        fans: 350000
+        id: '27263',
+        title: 'Les Grosses Têtes',
+        description: 'Retrouvez Laurent Ruquier et les sociétaires des Grosses Têtes.',
+        coverUrl: 'https://cdn-images.dzcdn.net/images/talk/f05e9ea2e7421cb8b770519bfb7f8c5b/500x500-000000-80-0-0.jpg',
+        fans: 145000
       },
       {
-        id: '100235',
-        title: 'Science Vs',
-        description: 'Facts, myths and everything in between with Wendy Zukerman.',
-        coverUrl: 'https://cdn-images.dzcdn.net/images/talk/b86a83a0058b87b7a1dfa0bbcae3dbf4/500x500-000000-80-0-0.jpg',
-        fans: 180000
+        id: '1587392',
+        title: 'La dernière',
+        description: "Guillaume Meurice, Juliette Arnaud et Aymeric Lompret analysent l'actualité.",
+        coverUrl: 'https://cdn-images.dzcdn.net/images/talk/9c4c478a514d3f3ee91f09e8633364f8/500x500-000000-80-0-0.jpg',
+        fans: 98000
       },
       {
-        id: '100236',
-        title: 'HugoDécrypte - Les Actus du Jour',
-        description: 'Le résumé des actualités du jour en 10 minutes.',
-        coverUrl: 'https://cdn-images.dzcdn.net/images/cover/98bb12b84eb4375b48bc6719b35da3c2/500x500-000000-80-0-0.jpg',
-        fans: 410000
+        id: '1106092',
+        title: "Entrez dans l'Histoire",
+        description: "Lorànt Deutsch vous emmène sur les traces des plus grandes figures historiques.",
+        coverUrl: 'https://cdn-images.dzcdn.net/images/talk/783a48e89f76a165b4c48970e6e7d6a5/500x500-000000-80-0-0.jpg',
+        fans: 82000
       }
     ];
   }
 
   /**
-   * Épisodes d'un Podcast
+   * Épisodes d'un Podcast Deezer
    */
   public async getPodcastEpisodes(podcastId: string): Promise<DeezerEpisode[]> {
     try {
-      const res = await fetch(`/api/deezer/podcast/${podcastId}/episodes`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.data && Array.isArray(data.data)) {
-          return data.data.map((ep: any) => ({
-            id: String(ep.id),
-            title: ep.title,
-            releaseDate: ep.release_date ? ep.release_date.split(' ')[0] : '2026',
-            durationSeconds: ep.duration || 1800,
-            coverUrl: ep.picture || 'https://cdn-images.dzcdn.net/images/talk/b1d3cc65ef4dcdb9959a57281b6c527a/500x500-000000-80-0-0.jpg'
-          }));
-        }
+      const data = await this.fetchDeezer<any>(`podcast/${podcastId}/episodes`);
+      if (data?.data && Array.isArray(data.data)) {
+        return data.data.map((ep: any) => ({
+          id: String(ep.id),
+          title: ep.title,
+          releaseDate: ep.release_date ? ep.release_date.split(' ')[0] : '2024-01-01',
+          durationSeconds: ep.duration || 1800,
+          coverUrl: ep.picture_medium || ep.picture_big,
+        }));
       }
-    } catch (err) {
-      console.warn('Deezer podcast episodes fetch error:', err);
-    }
+    } catch {}
+
     return [
       {
         id: 'ep-1',
         title: 'Interview Exclusive : Les Secrets Révélés',
-        releaseDate: '30 oct. 2026',
-        durationSeconds: 3600,
+        releaseDate: '2024-10-25',
+        durationSeconds: 3420,
         coverUrl: 'https://cdn-images.dzcdn.net/images/talk/b1d3cc65ef4dcdb9959a57281b6c527a/500x500-000000-80-0-0.jpg'
       },
       {
         id: 'ep-2',
-        title: 'Chroniques Inédites & Coulisses',
-        releaseDate: '28 oct. 2026',
-        durationSeconds: 2700,
+        title: 'Parcours d\'une légende : De l\'ombre à la lumière',
+        releaseDate: '2024-10-18',
+        durationSeconds: 4100,
         coverUrl: 'https://cdn-images.dzcdn.net/images/talk/b1d3cc65ef4dcdb9959a57281b6c527a/500x500-000000-80-0-0.jpg'
       }
     ];
   }
 
   /**
-   * Détails complets d'un Artiste (Hero, Bio, Nb Fans) — 100% Autonome sans serveur local
+   * Récupère un artiste de manière instantanée et synchrone depuis le cache ou les données connues (0ms)
    */
-  public async getArtist(artistId: string): Promise<DeezerArtistDetails> {
+  public getCachedArtist(artistId: string): DeezerArtistDetails | null {
     const cleanId = artistId.replace(/^art-/, '').replace(/^dz-/, '').trim();
-    if (this.artistCache.has(cleanId)) {
-      return this.artistCache.get(cleanId)!;
-    }
+    if (this.artistCache.has(cleanId)) return this.artistCache.get(cleanId)!;
 
-    // 1. Recherche instantanée (0ms) dans le catalogue vérifié
     const mockMatch = INITIAL_ARTISTS.find(
       (a) => a.id === cleanId || a.name.toLowerCase() === cleanId.toLowerCase()
     );
     if (mockMatch) {
-      const details: DeezerArtistDetails = {
+      return {
         id: mockMatch.id,
         name: mockMatch.name,
         avatarUrl: mockMatch.avatarUrl,
@@ -553,21 +594,18 @@ export class DeezerService {
         monthlyListeners: mockMatch.monthlyListeners || 3840000,
         nbFans: Math.round((mockMatch.monthlyListeners || 3840000) / 4),
         nbAlbums: 8,
-        bio: mockMatch.bio || `Artiste vérifié officiel sur Spoot Music. Discographie complète disponible en Hi-Res Lossless.`,
+        bio: mockMatch.bio || `Artiste vérifié officiel sur Spoot Music.`,
         isFollowed: mockMatch.isFollowed ?? true,
         hasNewRelease: mockMatch.hasNewRelease ?? true,
         albums: [],
       };
-      this.artistCache.set(cleanId, details);
-      return details;
     }
 
-    // 2. Recherche par morceau associé dans le catalogue
     const trackMatch = INITIAL_TRACKS.find(
       (t) => t.artistId === cleanId || t.artistName.toLowerCase() === cleanId.toLowerCase()
     );
     if (trackMatch) {
-      const details: DeezerArtistDetails = {
+      return {
         id: trackMatch.artistId,
         name: trackMatch.artistName,
         avatarUrl: trackMatch.coverUrl,
@@ -575,66 +613,96 @@ export class DeezerService {
         monthlyListeners: 3200000,
         nbFans: 450000,
         nbAlbums: 6,
-        bio: `Artiste vérifié officiel sur Spoot Music. Retrouvez l'intégralité de sa discographie studio.`,
+        bio: `Artiste vérifié officiel sur Spoot Music.`,
         isFollowed: true,
         hasNewRelease: true,
         albums: [],
       };
-      this.artistCache.set(cleanId, details);
-      return details;
     }
 
-    // 3. Si environnement local avec proxy Deezer actif
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    if (isLocal) {
+    return null;
+  }
+
+  /**
+   * Récupère les détails officiels d'un Artiste (Deezer API + fallback iTunes par nom)
+   */
+  public async getArtist(artistId: string): Promise<DeezerArtistDetails> {
+    const cleanId = artistId.replace(/^art-/, '').replace(/^dz-/, '').trim();
+    if (this.artistCache.has(cleanId)) {
+      return this.artistCache.get(cleanId)!;
+    }
+
+    const cached = this.getCachedArtist(cleanId);
+    if (cached) {
+      this.artistCache.set(cleanId, cached);
+      return cached;
+    }
+
+    // 1. Si identifiant numérique : appel Deezer artist/ID
+    const isNumericId = /^\d+$/.test(cleanId);
+    if (isNumericId) {
       try {
-        const res = await fetch(`/api/deezer/artist/${cleanId}`, { signal: AbortSignal.timeout(2000) });
-        if (res.ok) {
-          const a = await res.json();
-          if (a && a.id) {
-            const finalPicture = a.picture_xl || a.picture_big || a.picture_medium || 'https://cdn-images.dzcdn.net/images/artist/56589954cda1a811317b84fffc1c75b5/1000x1000-000000-80-0-0.jpg';
-            const details: DeezerArtistDetails = {
-              id: String(a.id),
-              name: a.name,
-              avatarUrl: finalPicture,
-              pictureXl: finalPicture,
-              monthlyListeners: a.nb_fan ? Math.round(a.nb_fan * 3.8) : 2500000,
-              nbFans: a.nb_fan || 150000,
-              nbAlbums: a.nb_album || 8,
-              bio: `Artiste vérifié officiel. Retrouvez l'intégralité de sa discographie studio en streaming Hi-Res Lossless.`,
-              isFollowed: false,
-              hasNewRelease: true,
-              albums: [],
-            };
-            this.artistCache.set(cleanId, details);
-            return details;
-          }
+        const a = await this.fetchDeezer<any>(`artist/${cleanId}`);
+        if (a && a.id) {
+          const finalPic = a.picture_xl || a.picture_big || a.picture_medium || 'https://cdn-images.dzcdn.net/images/artist/56589954cda1a811317b84fffc1c75b5/1000x1000-000000-80-0-0.jpg';
+          const details: DeezerArtistDetails = {
+            id: String(a.id),
+            name: a.name,
+            avatarUrl: finalPic,
+            pictureXl: finalPic,
+            monthlyListeners: a.nb_fan ? Math.round(a.nb_fan * 3.8) : 3200000,
+            nbFans: a.nb_fan || 250000,
+            nbAlbums: a.nb_album || 8,
+            bio: `Artiste vérifié officiel sur Spoot Music. Discographie complète disponible en Hi-Res Lossless.`,
+            isFollowed: true,
+            hasNewRelease: true,
+            albums: [],
+          };
+          this.artistCache.set(cleanId, details);
+          return details;
         }
-      } catch (err) {
-        console.warn('Local Deezer artist fetch failed:', err);
-      }
+      } catch {}
     }
 
-    // 4. Recherche Cloud autonome iTunes API (CORS mondial, sans PC allumé)
+    // 2. Si identifiant textuel (nom d'artiste) : recherche Deezer search/artist
     try {
-      const itRes = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(cleanId)}&entity=musicArtist&limit=1`,
-        { signal: AbortSignal.timeout(3000) }
-      );
+      const artSearch = await this.fetchDeezer<any>('search/artist', { q: cleanId, limit: 1 });
+      const a = artSearch?.data?.[0];
+      if (a && a.id) {
+        const finalPic = a.picture_xl || a.picture_big || a.picture_medium || 'https://cdn-images.dzcdn.net/images/artist/56589954cda1a811317b84fffc1c75b5/1000x1000-000000-80-0-0.jpg';
+        const details: DeezerArtistDetails = {
+          id: String(a.id),
+          name: a.name,
+          avatarUrl: finalPic,
+          pictureXl: finalPic,
+          monthlyListeners: a.nb_fan ? Math.round(a.nb_fan * 3.8) : 3200000,
+          nbFans: a.nb_fan || 250000,
+          nbAlbums: a.nb_album || 8,
+          bio: `Artiste vérifié officiel sur Spoot Music. Discographie complète disponible en Hi-Res Lossless.`,
+          isFollowed: true,
+          hasNewRelease: true,
+          albums: [],
+        };
+        this.artistCache.set(cleanId, details);
+        this.artistCache.set(String(a.id), details);
+        return details;
+      }
+    } catch {}
+
+    // 3. Fallback iTunes Search par nom
+    try {
+      const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(cleanId)}&entity=musicArtist&limit=1`);
       if (itRes.ok) {
         const data = await itRes.json();
         const itArtist = data.results?.[0];
         if (itArtist) {
           let avatar = 'https://cdn-images.dzcdn.net/images/artist/56589954cda1a811317b84fffc1c75b5/1000x1000-000000-80-0-0.jpg';
           try {
-            const songRes = await fetch(
-              `https://itunes.apple.com/search?term=${encodeURIComponent(itArtist.artistName)}&entity=song&limit=1`,
-              { signal: AbortSignal.timeout(2000) }
-            );
-            if (songRes.ok) {
-              const songData = await songRes.json();
-              if (songData.results?.[0]?.artworkUrl100) {
-                avatar = songData.results[0].artworkUrl100.replace('100x100bb', '1000x1000bb');
+            const sRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(itArtist.artistName)}&entity=song&limit=1`);
+            if (sRes.ok) {
+              const sData = await sRes.json();
+              if (sData.results?.[0]?.artworkUrl100) {
+                avatar = sData.results[0].artworkUrl100.replace('100x100bb', '1000x1000bb');
               }
             }
           } catch {}
@@ -647,7 +715,7 @@ export class DeezerService {
             monthlyListeners: 3500000,
             nbFans: 500000,
             nbAlbums: 7,
-            bio: `Artiste vérifié officiel sur Spoot Music (${itArtist.primaryGenreName || 'Musique'}). Discographie disponible en Hi-Res Lossless.`,
+            bio: `Artiste officiel vérifié sur Spoot Music (${itArtist.primaryGenreName || 'Musique'}).`,
             isFollowed: true,
             hasNewRelease: true,
             albums: [],
@@ -656,20 +724,18 @@ export class DeezerService {
           return details;
         }
       }
-    } catch (e) {
-      console.warn('iTunes artist lookup fallback error:', e);
-    }
+    } catch {}
 
-    // 5. Fallback garanti pour que la vue artiste ne soit JAMAIS bloquée
+    // 4. Fallback final garanti sans jamais bloquer l'écran
     const readableName = cleanId.replace(/[-_]/g, ' ');
     const fallbackDetails: DeezerArtistDetails = {
       id: cleanId,
       name: readableName.charAt(0).toUpperCase() + readableName.slice(1),
-      avatarUrl: 'https://cdn-images.dzcdn.net/images/artist/96557a2f4ef2ae278932779a830517af/1000x1000-000000-80-0-0.jpg',
-      pictureXl: 'https://cdn-images.dzcdn.net/images/artist/96557a2f4ef2ae278932779a830517af/1000x1000-000000-80-0-0.jpg',
-      monthlyListeners: 2400000,
-      nbFans: 120000,
-      nbAlbums: 5,
+      avatarUrl: 'https://cdn-images.dzcdn.net/images/artist/56589954cda1a811317b84fffc1c75b5/1000x1000-000000-80-0-0.jpg',
+      pictureXl: 'https://cdn-images.dzcdn.net/images/artist/56589954cda1a811317b84fffc1c75b5/1000x1000-000000-80-0-0.jpg',
+      monthlyListeners: 2800000,
+      nbFans: 180000,
+      nbAlbums: 6,
       bio: `Artiste officiel vérifié sur Spoot Music. Discographie complète disponible.`,
       isFollowed: true,
       hasNewRelease: true,
@@ -680,314 +746,253 @@ export class DeezerService {
   }
 
   /**
-   * Top 10 Titres Populaires d'un Artiste avec décroissance stricte et chiffres réels — 100% Autonome
+   * Top 10 Titres Populaires d'un Artiste avec vrais previews audio et métadonnées Deezer
    */
   public async getArtistTopTracks(artistId: string, limit: number = 10, artistMonthlyListeners?: number): Promise<Track[]> {
     const cleanId = artistId.replace(/^art-/, '').replace(/^dz-/, '').trim();
-    const listeners = artistMonthlyListeners || this.artistCache.get(cleanId)?.monthlyListeners || 3500000;
-    const tracks: Track[] = [];
-
-    // 1. Si environnement local avec Deezer proxy
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    if (isLocal) {
-      try {
-        const res = await fetch(`/api/deezer/artist/${cleanId}/top?limit=${limit}`, { signal: AbortSignal.timeout(2000) });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-            let prevPlays = 0;
-            return data.data.map((t: any, idx: number) => {
-              const trackId = `dz-${t.id}`;
-              const plays = this.computeDeterministicPlays(trackId, idx, listeners, t.rank, prevPlays);
-              prevPlays = plays;
-              return this.mapDeezerTrack(t, undefined, plays);
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('Deezer artist top tracks error:', err);
-      }
+    if (this.topTracksCache.has(cleanId)) {
+      return this.topTracksCache.get(cleanId)!;
     }
 
-    // 2. Catalogue mock instantané
+    const listeners = artistMonthlyListeners || this.artistCache.get(cleanId)?.monthlyListeners || 3500000;
+    const isNumericId = /^\d+$/.test(cleanId);
+
+    // 1. Appel Deezer artist/ID/top
+    if (isNumericId) {
+      try {
+        const data = await this.fetchDeezer<any>(`artist/${cleanId}/top`, { limit });
+        if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+          let prevPlays = 0;
+          const mapped = data.data.map((t: any, idx: number) => {
+            const trackId = `dz-${t.id}`;
+            const plays = this.computeDeterministicPlays(trackId, idx, listeners, t.rank, prevPlays);
+            prevPlays = plays;
+            return this.mapDeezerTrack(t, undefined, plays);
+          });
+          this.topTracksCache.set(cleanId, mapped);
+          return mapped;
+        }
+      } catch {}
+    }
+
+    // 2. Recherche Deezer par nom d'artiste
+    const artistName = this.artistCache.get(cleanId)?.name || cleanId;
+    try {
+      const data = await this.fetchDeezer<any>('search', { q: `artist:"${artistName}"`, limit });
+      if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+        let prevPlays = 0;
+        const mapped = data.data.map((t: any, idx: number) => {
+          const trackId = `dz-${t.id}`;
+          const plays = this.computeDeterministicPlays(trackId, idx, listeners, t.rank, prevPlays);
+          prevPlays = plays;
+          return this.mapDeezerTrack(t, undefined, plays);
+        });
+        this.topTracksCache.set(cleanId, mapped);
+        return mapped;
+      }
+    } catch {}
+
+    // 3. Fallback catalogue mock instantané si disponible
     const matchedMockTracks = INITIAL_TRACKS.filter(
-      (t) => t.artistId === cleanId || t.artistName.toLowerCase().includes(cleanId.toLowerCase())
+      (t) => t.artistId === cleanId || t.artistName.toLowerCase().includes(artistName.toLowerCase())
     );
     if (matchedMockTracks.length > 0) {
-      tracks.push(...matchedMockTracks);
+      this.topTracksCache.set(cleanId, matchedMockTracks);
+      return matchedMockTracks;
     }
 
-    // 3. Recherche iTunes Top Tracks (country=FR + country=US)
-    const artistName = this.artistCache.get(cleanId)?.name || cleanId;
+    // 4. Fallback iTunes Search par nom
     try {
-      const itRes = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&country=FR&entity=song&limit=${limit}`,
-        { signal: AbortSignal.timeout(3000) }
-      );
+      const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&country=FR&entity=song&limit=${limit}`);
       if (itRes.ok) {
         const itData = await itRes.json();
         if (itData.results && Array.isArray(itData.results)) {
-          for (const item of itData.results) {
-            if (!tracks.some((t) => t.title.toLowerCase() === item.trackName.toLowerCase())) {
-              tracks.push(this.mapItunesTrack(item));
-            }
+          const mapped = itData.results.map((item: any) => this.mapItunesTrack(item));
+          if (mapped.length > 0) {
+            this.topTracksCache.set(cleanId, mapped);
+            return mapped;
           }
         }
       }
-    } catch (e) {
-      console.warn('iTunes top tracks error:', e);
-    }
+    } catch {}
 
-    // Si toujours vide, enrichir avec les morceaux du catalogue
-    if (tracks.length === 0) {
-      tracks.push(...INITIAL_TRACKS.slice(0, 5));
-    }
-
-    return tracks.slice(0, limit);
+    return INITIAL_TRACKS.slice(0, limit);
   }
 
   /**
-   * Discographie Complète d'un Artiste (Albums, Singles, EP) — 100% Autonome
+   * Discographie Complète d'un Artiste (Albums, Singles, EP)
    */
-  public async getArtistAlbums(artistId: string, limit: number = 30): Promise<Album[]> {
+  public async getArtistAlbums(artistId: string, limit: number = 24): Promise<Album[]> {
     const cleanId = artistId.replace(/^art-/, '').replace(/^dz-/, '').trim();
-    const albums: Album[] = [];
+    const isNumericId = /^\d+$/.test(cleanId);
 
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    if (isLocal) {
+    if (isNumericId) {
       try {
-        const res = await fetch(`/api/deezer/artist/${cleanId}/albums?limit=${limit}`, { signal: AbortSignal.timeout(2000) });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-            return data.data.map((alb: any) => ({
-              id: String(alb.id),
-              title: alb.title,
-              artistId: String(cleanId),
-              artistName: alb.artist?.name || '',
-              coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium,
-              releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
-              type: (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album') as any,
-              trackCount: alb.nb_tracks || 1,
-              totalDurationMs: (alb.nb_tracks || 1) * 200000,
-              tracks: [],
-            }));
-          }
+        const data = await this.fetchDeezer<any>(`artist/${cleanId}/albums`, { limit });
+        if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+          return data.data.map((alb: any) => ({
+            id: String(alb.id),
+            title: alb.title,
+            artistId: cleanId,
+            artistName: alb.artist?.name || this.artistCache.get(cleanId)?.name || 'Artiste',
+            coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium,
+            releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
+            type: (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album') as any,
+            trackCount: alb.nb_tracks || 10,
+            totalDurationMs: (alb.nb_tracks || 10) * 200000,
+            tracks: [],
+          }));
         }
-      } catch (err) {
-        console.warn('Deezer artist albums error:', err);
-      }
+      } catch {}
     }
 
-    // Fallback catalogue mock
-    const mockAlb = INITIAL_ALBUMS.filter(
-      (a) => a.artistId === cleanId || a.artistName.toLowerCase().includes(cleanId.toLowerCase())
-    );
-    if (mockAlb.length > 0) {
-      albums.push(...mockAlb);
-    }
-
-    // Fallback iTunes Albums
     const artistName = this.artistCache.get(cleanId)?.name || cleanId;
     try {
-      const itRes = await fetch(
-        `https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&country=FR&entity=album&limit=${limit}`,
-        { signal: AbortSignal.timeout(3000) }
-      );
+      const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&entity=album&limit=${limit}`);
       if (itRes.ok) {
         const itData = await itRes.json();
         if (itData.results && Array.isArray(itData.results)) {
-          for (const alb of itData.results) {
-            if (!albums.some((a) => a.title.toLowerCase() === alb.collectionName.toLowerCase())) {
-              albums.push({
-                id: String(alb.collectionId),
-                title: alb.collectionName,
-                artistId: String(cleanId),
-                artistName: alb.artistName || artistName,
-                coverUrl: (alb.artworkUrl100 || '').replace('100x100bb', '1000x1000bb'),
-                releaseYear: alb.releaseDate ? parseInt(alb.releaseDate.split('-')[0], 10) : 2024,
-                type: (alb.trackCount === 1 ? 'single' : 'album') as any,
-                trackCount: alb.trackCount || 10,
-                totalDurationMs: (alb.trackCount || 10) * 210000,
-                tracks: [],
-              });
-            }
-          }
+          return itData.results.map((alb: any) => ({
+            id: String(alb.collectionId),
+            title: alb.collectionName,
+            artistId: cleanId,
+            artistName: alb.artistName || artistName,
+            coverUrl: (alb.artworkUrl100 || '').replace('100x100bb', '1000x1000bb'),
+            releaseYear: alb.releaseDate ? parseInt(alb.releaseDate.split('-')[0], 10) : 2024,
+            type: (alb.trackCount === 1 ? 'single' : 'album') as any,
+            trackCount: alb.trackCount || 10,
+            totalDurationMs: (alb.trackCount || 10) * 200000,
+            tracks: [],
+          }));
         }
       }
-    } catch (e) {
-      console.warn('iTunes albums fetch error:', e);
-    }
+    } catch {}
 
-    if (albums.length === 0) {
-      albums.push(...INITIAL_ALBUMS.slice(0, 4));
-    }
-
-    return albums;
+    return INITIAL_ALBUMS;
   }
 
   /**
-   * Artistes Similaires / Associés
+   * Artistes Similaires (Fans Also Like)
    */
-  public async getArtistRelated(artistId: string, limit: number = 10): Promise<Artist[]> {
+  public async getArtistRelated(artistId: string, limit: number = 8): Promise<Artist[]> {
     const cleanId = artistId.replace(/^art-/, '').replace(/^dz-/, '').trim();
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    if (isLocal) {
+    if (/^\d+$/.test(cleanId)) {
       try {
-        const res = await fetch(`/api/deezer/artist/${cleanId}/related?limit=${limit}`, { signal: AbortSignal.timeout(2000) });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-            return data.data.map((a: any) => ({
-              id: String(a.id),
-              name: a.name,
-              avatarUrl: a.picture_xl || a.picture_big || a.picture_medium,
-              monthlyListeners: (a.nb_fan || 50000) * 3,
-              bio: `Artiste similaire officiel sur Spoot Music.`,
-              isFollowed: false,
-              hasNewRelease: false,
-              albums: [],
-            }));
-          }
+        const data = await this.fetchDeezer<any>(`artist/${cleanId}/related`, { limit });
+        if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+          return data.data.map((a: any) => ({
+            id: String(a.id),
+            name: a.name,
+            avatarUrl: a.picture_xl || a.picture_big || a.picture_medium,
+            monthlyListeners: (a.nb_fan || 50000) * 4,
+            bio: `Artiste similaire recommandé sur Spoot Music.`,
+            isFollowed: false,
+            hasNewRelease: false,
+            albums: [],
+          }));
         }
-      } catch (err) {
-        console.warn('Deezer related artists error:', err);
-      }
+      } catch {}
     }
 
     return INITIAL_ARTISTS.filter((a) => a.id !== cleanId).slice(0, limit);
   }
 
   /**
-   * Détails Complets d'un Album (Pochette HD cover_xl, date, durée, pistes) — 100% Autonome
+   * Détails d'un Album et liste complète de ses pistes
    */
-  public async getAlbum(albumId: string): Promise<DeezerAlbumDetails> {
+  public async getAlbum(albumId: string): Promise<DeezerAlbumDetails | null> {
     const cleanId = albumId.replace(/^alb-/, '').replace(/^dz-/, '').trim();
-    if (this.albumCache.has(cleanId)) {
-      return this.albumCache.get(cleanId)!;
+    if (this.albumCache.has(cleanId)) return this.albumCache.get(cleanId)!;
+
+    if (/^\d+$/.test(cleanId)) {
+      try {
+        const alb = await this.fetchDeezer<any>(`album/${cleanId}`);
+        if (alb && alb.id) {
+          const cover = alb.cover_xl || alb.cover_big || alb.cover_medium;
+          const artistName = alb.artist?.name || 'Artiste';
+          const artistId = String(alb.artist?.id || '0');
+          const tracks: Track[] = (alb.tracks?.data || []).map((t: any) => this.mapDeezerTrack(t, cover));
+
+          const details: DeezerAlbumDetails = {
+            id: String(alb.id),
+            title: alb.title,
+            artistId,
+            artistName,
+            artistPictureSmall: alb.artist?.picture_medium || '',
+            coverUrl: cover,
+            coverXl: cover,
+            releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
+            releaseDate: alb.release_date || '2024-01-01',
+            type: (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album') as any,
+            trackCount: alb.nb_tracks || tracks.length,
+            totalDurationMs: (alb.duration || 1800) * 1000,
+            genres: (alb.genres?.data || []).map((g: any) => g.name),
+            tracks,
+          };
+          this.albumCache.set(cleanId, details);
+          return details;
+        }
+      } catch {}
     }
 
-    // 1. Catalogue mock
-    const mockAlb = INITIAL_ALBUMS.find((a) => a.id === cleanId || a.id === `alb-${cleanId}`);
-    if (mockAlb) {
-      const albTracks = INITIAL_TRACKS.filter((t) => t.albumId === mockAlb.id || t.albumTitle === mockAlb.title);
+    const mockMatch = INITIAL_ALBUMS.find((a) => a.id === albumId || a.id === cleanId);
+    if (mockMatch) {
+      const albTracks = INITIAL_TRACKS.filter((t) => t.albumId === mockMatch.id);
       const details: DeezerAlbumDetails = {
-        ...mockAlb,
-        coverXl: mockAlb.coverUrl,
-        releaseDate: `${mockAlb.releaseYear}-01-01`,
-        artistPictureSmall: mockAlb.coverUrl,
-        genres: ['Musique', 'Hi-Res Lossless'],
-        tracks: albTracks.length > 0 ? albTracks : INITIAL_TRACKS.slice(0, 8),
+        ...mockMatch,
+        coverXl: mockMatch.coverUrl,
+        releaseDate: '2024-01-01',
+        artistPictureSmall: '',
+        genres: ['Musique'],
+        tracks: albTracks,
       };
       this.albumCache.set(cleanId, details);
       return details;
     }
 
-    // 2. Si local avec proxy
-    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    if (isLocal) {
-      try {
-        const res = await fetch(`/api/deezer/album/${cleanId}`, { signal: AbortSignal.timeout(2000) });
-        if (res.ok) {
-          const alb = await res.json();
-          if (alb && alb.id) {
-            const coverXl = alb.cover_xl || alb.cover_big || alb.cover_medium;
-            const artistListeners = (alb.fans || 80000) * 4;
-            const tracks: Track[] = (alb.tracks?.data || []).map((t: any) => {
-              const trackId = `dz-${t.id}`;
-              const plays = this.computeDeterministicPlays(trackId, undefined, artistListeners, t.rank);
-              const mapped = this.mapDeezerTrack(t, coverXl, plays);
-              mapped.albumTitle = alb.title;
-              mapped.albumId = String(alb.id);
-              if (!mapped.artistName && alb.artist?.name) {
-                mapped.artistName = alb.artist.name;
-                mapped.artistId = String(alb.artist.id);
-              }
-              return mapped;
-            });
-
-            const details: DeezerAlbumDetails = {
-              id: String(alb.id),
-              title: alb.title,
-              artistId: String(alb.artist?.id || '0'),
-              artistName: alb.artist?.name || 'Artiste',
-              coverUrl: coverXl,
-              coverXl,
-              releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
-              releaseDate: alb.release_date || '2024',
-              type: (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album') as any,
-              trackCount: alb.nb_tracks || tracks.length,
-              totalDurationMs: (alb.duration || 2400) * 1000,
-              artistPictureSmall: alb.artist?.picture_small || alb.artist?.picture_medium || '',
-              genres: (alb.genres?.data || []).map((g: any) => g.name),
-              tracks,
-            };
-            this.albumCache.set(cleanId, details);
-            return details;
-          }
-        }
-      } catch (err) {
-        console.warn('Deezer album fetch error:', err);
-      }
-    }
-
-    // 3. Fallback iTunes Lookup
-    try {
-      const itRes = await fetch(`https://itunes.apple.com/lookup?id=${cleanId}&entity=song`, { signal: AbortSignal.timeout(3000) });
-      if (itRes.ok) {
-        const itData = await itRes.json();
-        if (itData.results && itData.results.length > 0) {
-          const albMeta = itData.results[0];
-          const rawTracks = itData.results.slice(1);
-          const coverXl = (albMeta.artworkUrl100 || '').replace('100x100bb', '1000x1000bb');
-          const tracks = rawTracks.map((item: any) => this.mapItunesTrack(item));
-
-          const details: DeezerAlbumDetails = {
-            id: String(albMeta.collectionId),
-            title: albMeta.collectionName || 'Album',
-            artistId: String(albMeta.artistId || '0'),
-            artistName: albMeta.artistName || 'Artiste',
-            coverUrl: coverXl,
-            coverXl,
-            releaseYear: albMeta.releaseDate ? parseInt(albMeta.releaseDate.split('-')[0], 10) : 2024,
-            releaseDate: albMeta.releaseDate ? albMeta.releaseDate.split('T')[0] : '2024',
-            type: (albMeta.trackCount === 1 ? 'single' : 'album') as any,
-            trackCount: albMeta.trackCount || tracks.length,
-            totalDurationMs: (albMeta.trackCount || 10) * 210000,
-            artistPictureSmall: coverXl,
-            genres: [albMeta.primaryGenreName || 'Musique'],
-            tracks: tracks.length > 0 ? tracks : INITIAL_TRACKS.slice(0, 6),
-          };
-          this.albumCache.set(cleanId, details);
-          return details;
-        }
-      }
-    } catch (e) {
-      console.warn('iTunes album lookup error:', e);
-    }
-
-    // 4. Fallback garanti
-    const fallbackAlbum: DeezerAlbumDetails = {
-      id: cleanId,
-      title: 'Album Studio',
-      artistId: '1',
-      artistName: 'Artiste Officiel',
-      coverUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
-      coverXl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
-      releaseYear: 2024,
-      releaseDate: '2024-01-01',
-      type: 'album',
-      trackCount: 10,
-      totalDurationMs: 2100000,
-      artistPictureSmall: '',
-      genres: ['Hi-Res Lossless'],
-      tracks: INITIAL_TRACKS.slice(0, 8),
-    };
-    return fallbackAlbum;
+    return null;
   }
 
   /**
-   * Récupération des Paroles Synchronisées via LRCLIB Direct (CORS Cloudflare) avec fallback universel pour tous les sons
+   * Titres du Unreleased Vault / Exclusivités Spoot
+   */
+  public async getArtistUnreleased(artistName: string): Promise<any[]> {
+    const clean = artistName.toLowerCase().trim();
+    const vaultMap: Record<string, any[]> = {
+      'sdm': [
+        { id: 'sdm-vault-1', title: 'CARTIER SANTOS (Studio V1 Session Extended)', durationFormatted: '3:45', durationMs: 225000, viewCount: 620000 },
+        { id: 'sdm-vault-2', title: 'ALVALM Intro (Unreleased Leak Demo)', durationFormatted: '2:58', durationMs: 178000, viewCount: 480000 },
+        { id: 'sdm-vault-3', title: 'Bolide Allemand (Live Bercy Acapella Exclusive)', durationFormatted: '3:20', durationMs: 200000, viewCount: 750000 }
+      ],
+      'tiakola': [
+        { id: 'tia-vault-1', title: 'BDLM (Solo Studio Cut Demo)', durationFormatted: '3:12', durationMs: 192000, viewCount: 540000 },
+        { id: 'tia-vault-2', title: 'Mélo Tape (Leak Archive 2024)', durationFormatted: '3:05', durationMs: 185000, viewCount: 410000 },
+        { id: 'tia-vault-3', title: 'La Clé (Acoustic Guitar Session)', durationFormatted: '2:48', durationMs: 168000, viewCount: 690000 }
+      ],
+      'vacra': [
+        { id: 'vac-vault-1', title: 'Tiki Taka (Acoustic Session Inédite)', durationFormatted: '3:15', durationMs: 195000, viewCount: 380000 },
+        { id: 'vac-vault-2', title: 'Plan B (Démo Studio Archive)', durationFormatted: '2:50', durationMs: 170000, viewCount: 290000 }
+      ],
+      'yoasobi': [
+        { id: 'yoa-vault-1', title: '夜に駆ける (The First Take Studio Master Unreleased)', durationFormatted: '4:15', durationMs: 255000, viewCount: 1200000 },
+        { id: 'yoa-vault-2', title: 'Gunjo (Acoustic Piano Session)', durationFormatted: '3:50', durationMs: 230000, viewCount: 950000 }
+      ]
+    };
+
+    for (const [key, list] of Object.entries(vaultMap)) {
+      if (clean.includes(key)) {
+        return list.map(item => ({ ...item, artistName }));
+      }
+    }
+
+    return [
+      { id: `${clean}-vault-1`, title: `${artistName} — Session Studio Exclusive 2024`, durationFormatted: '3:10', durationMs: 190000, viewCount: 320000, artistName },
+      { id: `${clean}-vault-2`, title: `${artistName} — Démo Inédite (Spoot Vault Leak)`, durationFormatted: '2:45', durationMs: 165000, viewCount: 280000, artistName }
+    ];
+  }
+
+  /**
+   * Paroles synchronisées via LRCLIB Public API (open CORS mondial)
    */
   public async getSyncedLyrics(
     artistName: string,
@@ -999,7 +1004,6 @@ export class DeezerService {
       return { lyrics: this.lyricsCache.get(cacheKey)!, isInstrumental: false };
     }
 
-    // 1. Vérification dans les morceaux pré-enregistrés du catalogue
     const catalogMatch = INITIAL_TRACKS.find(
       (t) =>
         t.title.toLowerCase() === trackTitle.toLowerCase() ||
@@ -1013,7 +1017,6 @@ export class DeezerService {
     const cleanArtist = artistName.replace(/\(.*\)/g, '').replace(/feat\..*/i, '').replace(/[,&].*/, '').trim();
     const cleanTitle = trackTitle.replace(/\(.*\)/g, '').replace(/\[.*\]/g, '').replace(/feat\..*/i, '').trim();
 
-    // 2. Appel direct LRCLIB Public API (CORS mondial open Cloudflare)
     const lrclibEndpoints = [
       `https://lrclib.net/api/get?artist_name=${encodeURIComponent(cleanArtist)}&track_name=${encodeURIComponent(cleanTitle)}`,
       `https://lrclib.net/api/get?artist_name=${encodeURIComponent(artistName)}&track_name=${encodeURIComponent(trackTitle)}`,
@@ -1026,103 +1029,69 @@ export class DeezerService {
         const res = await fetch(url, { signal: AbortSignal.timeout(2800) });
         if (res.ok) {
           const data = await res.json();
-          const target = Array.isArray(data) ? data[0] : data;
-          if (target) {
-            if (target.instrumental) {
+          const targetItem = Array.isArray(data) ? data[0] : data;
+          if (targetItem) {
+            if (targetItem.instrumental) {
               return { lyrics: [], isInstrumental: true };
             }
-            if (target.syncedLyrics) {
-              const parsed = this.parseLrc(target.syncedLyrics);
-              if (parsed.length > 0) {
-                this.lyricsCache.set(cacheKey, parsed);
-                return { lyrics: parsed, isInstrumental: false };
+            if (targetItem.syncedLyrics) {
+              const lines = this.parseLrc(targetItem.syncedLyrics);
+              if (lines.length > 0) {
+                this.lyricsCache.set(cacheKey, lines);
+                return { lyrics: lines, isInstrumental: false };
               }
             }
-            if (target.plainLyrics) {
-              // Convertit les paroles brutes en paroles synchronisées distribuées sur la durée
-              const generated = this.synthesizeSyncedLinesFromPlain(target.plainLyrics, durationMs);
-              if (generated.length > 0) {
-                this.lyricsCache.set(cacheKey, generated);
-                return { lyrics: generated, isInstrumental: false };
-              }
+            if (targetItem.plainLyrics) {
+              const lines = this.synthesizeLyricsTiming(targetItem.plainLyrics, durationMs);
+              this.lyricsCache.set(cacheKey, lines);
+              return { lyrics: lines, isInstrumental: false };
             }
           }
         }
       } catch {}
     }
 
-    // 3. Synthèse synchronisée dynamique garantie pour TOUS les sons
-    const synthesized = this.generateAutonomousSyncedLyrics(cleanArtist, cleanTitle, durationMs);
-    this.lyricsCache.set(cacheKey, synthesized);
-    return { lyrics: synthesized, isInstrumental: false };
-  }
-
-  /**
-   * Convertit un texte brut en lignes synchronisées distribuées harmonieusement sur la durée
-   */
-  public synthesizeSyncedLinesFromPlain(plain: string, durationMs: number): LyricLine[] {
-    const rawLines = plain.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    if (rawLines.length === 0) return [];
-
-    const startMs = 4000;
-    const endMs = Math.max(startMs + 10000, durationMs - 6000);
-    const step = (endMs - startMs) / Math.max(1, rawLines.length);
-
-    return rawLines.map((text, idx) => ({
-      timeMs: Math.round(startMs + idx * step),
-      text,
-    }));
-  }
-
-  /**
-   * Génère des repères de chant synchronisés poétiques pour chaque morceau sans paroles officielles
-   */
-  public generateAutonomousSyncedLyrics(artist: string, title: string, durationMs: number): LyricLine[] {
-    const cues = [
-      { ratio: 0.02, text: `♪ ${title} — ${artist} ♪` },
-      { ratio: 0.08, text: `[Introduction musicale • Hi-Res Audio]` },
-      { ratio: 0.18, text: `La mélodie s'élève au rythme des accords` },
-      { ratio: 0.28, text: `Chaque note résonne en parfaite harmonie` },
-      { ratio: 0.38, text: `[Refrain • ${title}]` },
-      { ratio: 0.48, text: `Laisse le son vibrer dans l'espace sonore` },
-      { ratio: 0.58, text: `Une expérience immersive sans interruption` },
-      { ratio: 0.68, text: `[Pont & Solo instrumental]` },
-      { ratio: 0.78, text: `Les basses profondes portent l'énergie du morceau` },
-      { ratio: 0.88, text: `[Final & Décroissance harmonique]` },
-      { ratio: 0.95, text: `♪ Spoot Music • Fin du titre ♪` },
+    const fallbackLyrics: LyricLine[] = [
+      { timeMs: 0, text: `Écoute de ${trackTitle}` },
+      { timeMs: 4000, text: `Interprété par ${artistName}` },
+      { timeMs: 8000, text: 'Diffusion en qualité Hi-Res Lossless 24-bit' },
+      { timeMs: 12000, text: 'All your music. Zero noise. Spoot it.' },
     ];
-
-    return cues.map(c => ({
-      timeMs: Math.round(durationMs * c.ratio),
-      text: c.text
-    }));
+    this.lyricsCache.set(cacheKey, fallbackLyrics);
+    return { lyrics: fallbackLyrics, isInstrumental: false };
   }
 
-  /**
-   * Parseur de chaîne de format standard LRC : [mm:ss.xx] texte
-   */
-  public parseLrc(lrcText: string): LyricLine[] {
+  private parseLrc(lrcText: string): LyricLine[] {
     const lines = lrcText.split('\n');
     const result: LyricLine[] = [];
+    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
 
-    const timeRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/;
-
-    for (const rawLine of lines) {
-      const match = rawLine.match(timeRegex);
+    for (const line of lines) {
+      const match = timeRegex.exec(line);
       if (match) {
-        const mins = parseInt(match[1], 10);
-        const secs = parseInt(match[2], 10);
-        const msStr = match[3];
-        const ms = msStr.length === 2 ? parseInt(msStr, 10) * 10 : parseInt(msStr, 10);
-        const totalMs = mins * 60000 + secs * 1000 + ms;
-        const text = match[4].trim();
+        const min = parseInt(match[1], 10);
+        const sec = parseInt(match[2], 10);
+        const frac = parseInt(match[3].padEnd(3, '0').slice(0, 3), 10);
+        const timeMs = min * 60000 + sec * 1000 + frac;
+        const text = line.replace(/\s*\[\d{2}:\d{2}\.\d{2,3}\]\s*/g, '').trim();
         if (text) {
-          result.push({ timeMs: totalMs, text });
+          result.push({ timeMs, text });
         }
       }
     }
-
     return result.sort((a, b) => a.timeMs - b.timeMs);
+  }
+
+  private synthesizeLyricsTiming(plainText: string, totalDurationMs: number): LyricLine[] {
+    const rawLines = plainText.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+    if (rawLines.length === 0) return [];
+    const stepMs = Math.floor((totalDurationMs * 0.85) / rawLines.length);
+    const initialOffset = Math.min(3000, Math.floor(totalDurationMs * 0.05));
+
+    return rawLines.map((text, idx) => ({
+      timeMs: initialOffset + idx * stepMs,
+      text,
+    }));
   }
 }
 

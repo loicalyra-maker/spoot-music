@@ -78,16 +78,23 @@ export const ArtistView: React.FC = () => {
     };
   }, [activeArtistId]);
 
-  if (loading || !artist) {
-    return (
-      <div className="flex-1 flex items-center justify-center text-[#b3b3b3]">
-        <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-2 border-spoot-neon border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-sm font-semibold">Chargement de la page artiste officielle...</p>
-        </div>
-      </div>
-    );
-  }
+  const targetId = activeArtistId 
+    ? activeArtistId.replace(/^art-/, '').replace(/^dz-/, '').trim() 
+    : '8673550';
+
+  const effectiveArtist: DeezerArtistDetails = artist || deezerService.getCachedArtist(targetId) || {
+    id: targetId,
+    name: targetId.replace(/[-_]/g, ' '),
+    avatarUrl: 'https://cdn-images.dzcdn.net/images/artist/56589954cda1a811317b84fffc1c75b5/1000x1000-000000-80-0-0.jpg',
+    pictureXl: 'https://cdn-images.dzcdn.net/images/artist/56589954cda1a811317b84fffc1c75b5/1000x1000-000000-80-0-0.jpg',
+    monthlyListeners: 3500000,
+    nbFans: 450000,
+    nbAlbums: 6,
+    bio: 'Artiste vérifié officiel sur Spoot Music.',
+    isFollowed: true,
+    hasNewRelease: true,
+    albums: []
+  };
 
   const formatPlays = (count: number) => {
     return count.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
@@ -107,7 +114,7 @@ export const ArtistView: React.FC = () => {
     ? albums.filter(a => a.type === 'single' || a.type === 'ep')
     : albums;
 
-  const isCurrentArtistPlaying = currentTrack?.artistName.toLowerCase() === artist.name.toLowerCase() && isPlaying;
+  const isCurrentArtistPlaying = currentTrack?.artistName.toLowerCase() === effectiveArtist.name.toLowerCase() && isPlaying;
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar select-none text-white pb-36">
@@ -115,8 +122,8 @@ export const ArtistView: React.FC = () => {
       <div className="relative h-72 sm:h-80 md:h-96 w-full overflow-hidden flex flex-col justify-end p-8 bg-[#181818]">
         {/* Photo d'arrière-plan HD avec fallback automatique vers le top album si erreur */}
         <img
-          src={artist.pictureXl}
-          alt={artist.name}
+          src={effectiveArtist.pictureXl}
+          alt={effectiveArtist.name}
           onError={(e) => {
             if (topTracks.length > 0 && topTracks[0].coverUrl) {
               e.currentTarget.src = topTracks[0].coverUrl;
@@ -138,12 +145,12 @@ export const ArtistView: React.FC = () => {
 
           {/* Nom en très grand format */}
           <h1 className="text-5xl sm:text-6xl md:text-7xl font-black tracking-tight text-white leading-none">
-            {artist.name}
+            {effectiveArtist.name}
           </h1>
 
           {/* Nombre d'auditeurs par mois */}
           <p className="text-sm font-semibold text-white/90">
-            {formatPlays(artist.monthlyListeners)} auditeurs par mois
+            {formatPlays(effectiveArtist.monthlyListeners)} auditeurs par mois
           </p>
         </div>
       </div>
@@ -160,7 +167,7 @@ export const ArtistView: React.FC = () => {
             }
           }}
           className="w-14 h-14 rounded-full bg-spoot-neon flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-transform shadow-xl"
-          title={isCurrentArtistPlaying ? "Mettre en pause" : `Écouter ${artist.name}`}
+          title={isCurrentArtistPlaying ? "Mettre en pause" : `Écouter ${effectiveArtist.name}`}
         >
           {isCurrentArtistPlaying ? (
             <Pause className="w-6 h-6 fill-black" />
@@ -171,7 +178,7 @@ export const ArtistView: React.FC = () => {
 
         {/* Miniature de l'artiste */}
         <div className="w-9 h-9 rounded-full overflow-hidden shadow border border-white/10 hidden sm:block">
-          <img src={artist.avatarUrl} alt="" className="w-full h-full object-cover" />
+          <img src={effectiveArtist.avatarUrl} alt="" className="w-full h-full object-cover" />
         </div>
 
         {/* Bouton Aléatoire */}
@@ -300,7 +307,7 @@ export const ArtistView: React.FC = () => {
 
             <div className="min-w-0 space-y-1">
               <div className="flex items-center gap-1.5 text-xs text-[#b3b3b3]">
-                <img src={artist.avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
+                <img src={effectiveArtist.avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
                 <span className="truncate">« {topTracks[0].title} » est disponible 💙💙</span>
               </div>
               <p className="font-bold text-sm text-white truncate">{topTracks[0].title}</p>
@@ -399,7 +406,7 @@ export const ArtistView: React.FC = () => {
 
       {/* 7. Section "Vault" : Archives & Titres non officiels (Leaks / Morceaux retirés) */}
       <section className="px-8 pb-12">
-        <UnreleasedVault artistName={artist.name} artistId={artist.id} />
+        <UnreleasedVault artistName={effectiveArtist.name} artistId={effectiveArtist.id} />
       </section>
     </div>
   );

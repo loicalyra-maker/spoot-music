@@ -4,11 +4,32 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/deezer/(.*)",
+      "destination": "https://api.deezer.com/$1"
+    },
+    {
+      "source": "/api/lrclib/(.*)",
+      "destination": "https://lrclib.net/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/api/deezer/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, HEAD, OPTIONS"
+        }
+      ]
+    },
     {
       "source": "/(.*)",
       "headers": [

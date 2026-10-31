@@ -140,8 +140,7 @@ export class WebAudioEngine {
 
     // Détermine le flux audio réel (CDN iTunes / Deezer / YouTube Music)
     let streamUrl = track.streamUrl;
-    const isBrokenDeezer = Boolean(streamUrl && streamUrl.includes('cdnt-preview.dzcdn.net'));
-    if (!streamUrl || isBrokenDeezer || (!streamUrl.startsWith('http') && !streamUrl.startsWith('/api/stream-audio'))) {
+    if (!streamUrl || (!streamUrl.startsWith('http') && !streamUrl.startsWith('/api/stream-audio'))) {
       streamUrl = await musicApi.resolveFullAudioStream(track.artistName, track.title, track.streamUrl);
       if (streamUrl) {
         track.streamUrl = streamUrl;

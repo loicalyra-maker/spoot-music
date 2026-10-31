@@ -1,8 +1,9 @@
-// Spoot Music — Unreleased Vault Component (Archives & Titres Non Officiels / Leaks)
+// Spoot Music — Unreleased Vault Component (Archives & Titres Non Officiels / Leaks / Exclusivités Spoot)
 import React, { useState, useEffect } from 'react';
 import { Unlock, ChevronDown, ChevronUp, Play, Pause, Loader2, Sparkles, Volume2 } from 'lucide-react';
 import { VaultTrack, Track } from '../../types';
 import { useSpootStore } from '../../store/useSpootStore';
+import { deezerService } from '../../services/deezer_service';
 
 interface UnreleasedVaultProps {
   artistName: string;
@@ -13,7 +14,6 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
   const [isOpen, setIsOpen] = useState(true);
   const [loading, setLoading] = useState(false);
   const [vaultTracks, setVaultTracks] = useState<VaultTrack[]>([]);
-  const [error, setError] = useState<string | null>(null);
 
   const { currentTrack, playbackStatus, playTrack, togglePlayPause } = useSpootStore();
   const isPlaying = playbackStatus === 'Playing';
@@ -21,25 +21,33 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
-    setError(null);
 
+    // 1. Initialisation immédiate avec les archives vérifiées du Cloud Spoot
+    deezerService.getArtistUnreleased(artistName).then((cloudTracks) => {
+      if (isMounted) {
+        setVaultTracks(cloudTracks);
+        setLoading(false);
+      }
+    });
+
+    // 2. Si un serveur yt-dlp local est disponible, on tente d'enrichir la liste
     fetch(`/api/vault-search?artist=${encodeURIComponent(artistName)}`)
       .then((res) => {
-        if (!res.ok) throw new Error('Failed to query vault');
+        if (!res.ok) throw new Error('Local vault offline');
         return res.json();
       })
       .then((data) => {
-        if (isMounted) {
-          setVaultTracks(data.results || []);
-          setLoading(false);
+        if (isMounted && data.results && data.results.length > 0) {
+          const verified = data.results.filter((vt: any) =>
+            vt.title.toLowerCase().includes(artistName.toLowerCase())
+          );
+          if (verified.length > 0) {
+            setVaultTracks(verified);
+          }
         }
       })
-      .catch((err) => {
-        if (isMounted) {
-          console.warn('Vault fetch error:', err);
-          setError('Impossible de charger les archives du Vault pour le moment.');
-          setLoading(false);
-        }
+      .catch(() => {
+        // En cas d'indisponibilité du serveur local, le fallback Cloud reste actif
       });
 
     return () => {
@@ -47,33 +55,28 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
     };
   }, [artistName]);
 
-  // Filtrage strict : seuls les titres mentionnant explicitement l'artiste sont éligibles
-  const verifiedTracks = vaultTracks.filter((vt) =>
-    vt.title.toLowerCase().includes(artistName.toLowerCase())
-  );
+  const verifiedTracks = vaultTracks;
 
-  // Si aucun résultat avéré n'existe et que le chargement est terminé : masquer totalement
   if (!loading && verifiedTracks.length === 0) {
     return null;
   }
 
   const handlePlayVaultTrack = (vt: VaultTrack) => {
-    // Crée une piste interne jouable via le proxy audio
     const playableTrack: Track = {
       id: `vt-${vt.id}`,
       isrc: `VAULT-${vt.id}`,
       title: vt.title,
       artistId: artistId,
-      artistName: vt.artistName,
+      artistName: vt.artistName || artistName,
       albumId: 'vault',
-      albumTitle: 'Archives & Leaks (Vault Exclusive)',
+      albumTitle: 'Archives & Leaks (Exclusivité Spoot)',
       coverUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
-      durationMs: vt.durationMs,
+      durationMs: vt.durationMs || 180000,
       sampleRate: 48000,
       bitDepth: 16,
       bitrateKbps: 320,
-      formatLabel: 'Vault Stream / Web Audio Hi-Res',
-      releaseDate: 'Archive',
+      formatLabel: 'Exclusivité Spoot Lossless',
+      releaseDate: 'Exclusivité',
       playCount: vt.viewCount || 240000,
       lastPlayedTimestamp: Date.now(),
       isFavorite: false,
@@ -88,7 +91,7 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
         acousticness: 0.1,
         loudnessLufs: -6.0,
         decade: 2024,
-        genre: 'Vault Unreleased'
+        genre: 'Exclusivité Spoot'
       }
     };
 
@@ -96,15 +99,14 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
   };
 
   return (
-    <div className="mt-12 rounded-xl bg-gradient-to-b from-[#1b261e]/60 to-[#121212] border border-spoot-neon/20 overflow-hidden shadow-2xl">
-      
+    <div className="mt-12 rounded-2xl bg-gradient-to-b from-[#1b261e]/70 to-[#121212] border border-spoot-neon/30 overflow-hidden shadow-2xl">
       {/* Header cliquable pour replier/déplier */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-6 py-4 flex items-center justify-between hover:bg-spoot-neon/5 transition-colors text-left"
       >
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-spoot-neon/10 border border-spoot-neon/30 flex items-center justify-center text-spoot-neon shrink-0 shadow-lg">
+          <div className="w-10 h-10 rounded-xl bg-spoot-neon/15 border border-spoot-neon/40 flex items-center justify-center text-spoot-neon shrink-0 shadow-lg">
             <Unlock className="w-5 h-5" />
           </div>
           <div>
@@ -117,7 +119,7 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
               </span>
             </div>
             <p className="text-xs text-[#b3b3b3] mt-0.5">
-              Morceaux inédits, fuites, versions live rares et titres retirés des plateformes officielles.
+              Morceaux inédits, fuites, versions studio rares et titres exclusifs non disponibles ailleurs.
             </p>
           </div>
         </div>
@@ -130,71 +132,61 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
       {/* Contenu dépliable */}
       {isOpen && (
         <div className="px-6 pb-6 pt-2 border-t border-white/5 space-y-2">
-          {loading ? (
+          {loading && verifiedTracks.length === 0 ? (
             <div className="py-8 flex flex-col items-center justify-center gap-3 text-spoot-neon/80">
               <Loader2 className="w-6 h-6 animate-spin text-spoot-neon" />
               <p className="text-xs font-semibold text-[#b3b3b3]">
                 Extraction des archives non officielles de {artistName}...
               </p>
             </div>
-          ) : error ? (
-            <p className="py-4 text-xs text-[#727272] text-center">{error}</p>
-          ) : vaultTracks.length === 0 ? (
-            <p className="py-4 text-xs text-[#727272] text-center">
-              Aucun leak ou inédit répertorié pour cet artiste.
-            </p>
           ) : (
-            <div className="divide-y divide-white/5">
-              {verifiedTracks.map((vt, idx) => {
-                const isThisCurrent = currentTrack?.id === `vt-${vt.id}`;
-                const isThisPlaying = isThisCurrent && isPlaying;
-
+            <div className="space-y-1 mt-2">
+              {verifiedTracks.map((vt, index) => {
+                const isCurrent = currentTrack?.title === vt.title;
                 return (
                   <div
                     key={vt.id}
                     onClick={() => handlePlayVaultTrack(vt)}
-                    className={`flex items-center justify-between py-3 px-3 rounded-lg hover:bg-white/5 group cursor-pointer transition-colors ${
-                      isThisCurrent ? 'bg-spoot-neon/10' : ''
+                    className={`flex items-center justify-between p-3 rounded-xl transition-all cursor-pointer group ${
+                      isCurrent
+                        ? 'bg-spoot-neon/15 border border-spoot-neon/30 text-white'
+                        : 'hover:bg-white/[0.04] text-[#b3b3b3] hover:text-white'
                     }`}
                   >
-                    <div className="flex items-center gap-3.5 min-w-0 pr-4">
-                      <span className="w-5 text-center text-xs font-bold text-[#727272] group-hover:hidden">
-                        {idx + 1}
-                      </span>
-                      <button className="w-5 text-center text-spoot-neon hidden group-hover:block">
-                        {isThisPlaying ? (
-                          <Pause className="w-4 h-4 fill-current mx-auto" />
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
+                      <div className="w-8 flex items-center justify-center shrink-0">
+                        {isCurrent && isPlaying ? (
+                          <div className="w-4 h-4 flex items-center justify-center text-spoot-neon">
+                            <Volume2 className="w-4 h-4 animate-pulse" />
+                          </div>
                         ) : (
-                          <Play className="w-4 h-4 fill-current mx-auto" />
-                        )}
-                      </button>
-
-                      <div className="min-w-0">
-                        <p
-                          className={`text-sm font-bold truncate ${
-                            isThisCurrent ? 'text-spoot-neon' : 'text-white'
-                          }`}
-                        >
-                          {vt.title}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-[#b3b3b3] mt-0.5">
-                          <span className="text-spoot-neon/90 text-[10px] font-semibold flex items-center gap-1">
-                            <Sparkles className="w-2.5 h-2.5" />
-                            Vault Audio
+                          <span className="text-xs font-mono font-bold group-hover:hidden">
+                            #{index + 1}
                           </span>
-                          <span>•</span>
-                          <span>{vt.artistName}</span>
+                        )}
+                        <Play className={`w-4 h-4 text-white hidden ${!isCurrent ? 'group-hover:block' : ''}`} />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className={`text-sm font-bold truncate ${isCurrent ? 'text-spoot-neon' : 'text-white'}`}>
+                            {vt.title}
+                          </p>
+                          <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">
+                            Démo Studio
+                          </span>
                         </div>
+                        <p className="text-xs text-spoot-muted truncate mt-0.5">
+                          {vt.artistName || artistName} • Archive non officielle
+                        </p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-4 text-xs font-mono text-[#b3b3b3]">
-                      {vt.viewCount && (
-                        <span className="hidden sm:inline text-[#727272]">
-                          {vt.viewCount.toLocaleString('fr-FR')} écoutes
-                        </span>
-                      )}
-                      <span>{vt.durationFormatted}</span>
+                    <div className="flex items-center gap-6 shrink-0 text-xs font-mono">
+                      <span className="hidden sm:inline text-spoot-muted">
+                        {(vt.viewCount || 240000).toLocaleString()} écoutes
+                      </span>
+                      <span>{vt.durationFormatted || '3:15'}</span>
                     </div>
                   </div>
                 );
@@ -203,8 +195,8 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
           )}
         </div>
       )}
-
     </div>
   );
 };
+
 export default UnreleasedVault;

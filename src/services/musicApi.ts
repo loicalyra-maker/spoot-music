@@ -148,45 +148,53 @@ export class MusicApiService {
    * Fonctionne 100% de manière autonome sans serveur local (iTunes CDN Cloud, open CORS)
    */
   public async resolveFullAudioStream(artist: string, title: string, fallbackUrl?: string): Promise<string> {
-    // Si fallbackUrl est un flux valide qui n'est PAS un vieux lien Deezer expiré (403)
-    if (fallbackUrl && fallbackUrl.startsWith('http') && !fallbackUrl.includes('cdnt-preview.dzcdn.net')) {
+    // Si un flux audio fonctionnel est déjà fourni, on l'utilise directement
+    if (fallbackUrl && fallbackUrl.startsWith('http')) {
       return fallbackUrl;
     }
 
-    const cacheKey = `${artist}-${title}`.toLowerCase();
+    const cacheKey = `${artist}-${title}`.toLowerCase().trim();
     if (this.streamCache.has(cacheKey)) {
       return this.streamCache.get(cacheKey)!;
     }
 
-    // Nettoyage précis des termes (suppression des tags feat, remix, crochets, parenthèses)
+    // Nettoyage intelligent des termes de recherche
     const cleanArtist = (artist || '').split(/[,&]/)[0].replace(/\(.*\)/g, '').replace(/feat\..*/i, '').trim();
     const cleanTitle = (title || '').replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').replace(/feat\..*/i, '').trim();
 
-    // 1. Détection environnement local : Si localhost avec yt-dlp actif, tentative ultra-courte (1.5s max)
-    const isLocalhost = typeof window !== 'undefined' && 
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    if (isLocalhost) {
-      try {
-        const res = await fetch(`/api/stream-resolve?q=${encodeURIComponent(cleanArtist + ' ' + cleanTitle)}`, {
-          signal: AbortSignal.timeout(1500)
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.url) {
-            this.streamCache.set(cacheKey, data.url);
-            return data.url;
-          }
+    // 1. Recherche exacte sur Deezer Public API (via proxy local/Vercel ou direct)
+    try {
+      const deezerQuery = encodeURIComponent(`artist:"${cleanArtist}" track:"${cleanTitle}"`);
+      const res = await fetch(`/api/deezer/search?q=${deezerQuery}&limit=3`, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.data && d.data.length > 0 && d.data[0].preview) {
+          const stream = d.data[0].preview;
+          this.streamCache.set(cacheKey, stream);
+          return stream;
         }
-      } catch {}
-    }
+      }
+    } catch {}
 
-    // 2. Recherche directe iTunes Audio Preview (Store FR puis US) — CORS mondial, zéro backend, ultra-rapide < 200ms
+    // 2. Recherche générale Deezer si la recherche stricte n'a rien donné
+    try {
+      const broadQuery = encodeURIComponent(`${cleanArtist} ${cleanTitle}`);
+      const res = await fetch(`/api/deezer/search?q=${broadQuery}&limit=3`, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) {
+        const d = await res.json();
+        if (d.data && d.data.length > 0 && d.data[0].preview) {
+          const stream = d.data[0].preview;
+          this.streamCache.set(cacheKey, stream);
+          return stream;
+        }
+      }
+    } catch {}
+
+    // 3. Recherche iTunes Apple Audio avec vérification stricte de correspondance
     const itunesQueries = [
-      `https://itunes.apple.com/search?term=${encodeURIComponent(cleanArtist + ' ' + cleanTitle)}&country=FR&entity=song&limit=1`,
-      `https://itunes.apple.com/search?term=${encodeURIComponent(cleanArtist + ' ' + cleanTitle)}&country=US&entity=song&limit=1`,
-      `https://itunes.apple.com/search?term=${encodeURIComponent(artist + ' ' + title)}&country=FR&entity=song&limit=1`,
-      `https://itunes.apple.com/search?term=${encodeURIComponent(cleanTitle)}&country=FR&entity=song&limit=1`,
-      `https://itunes.apple.com/search?term=${encodeURIComponent(cleanArtist)}&country=FR&entity=song&limit=1`
+      `https://itunes.apple.com/search?term=${encodeURIComponent(cleanArtist + ' ' + cleanTitle)}&country=FR&entity=song&limit=5`,
+      `https://itunes.apple.com/search?term=${encodeURIComponent(cleanArtist + ' ' + cleanTitle)}&country=US&entity=song&limit=5`,
+      `https://itunes.apple.com/search?term=${encodeURIComponent(cleanTitle + ' ' + cleanArtist)}&entity=song&limit=5`
     ];
 
     for (const qUrl of itunesQueries) {
@@ -194,19 +202,24 @@ export class MusicApiService {
         const itRes = await fetch(qUrl, { signal: AbortSignal.timeout(2500) });
         if (itRes.ok) {
           const itData = await itRes.json();
-          const preview = itData.results?.[0]?.previewUrl;
-          if (preview) {
-            this.streamCache.set(cacheKey, preview);
-            return preview;
+          const results = itData.results || [];
+          // Recherche du meilleur match vérifié
+          const match = results.find((r: any) => {
+            const t = (r.trackName || '').toLowerCase();
+            const a = (r.artistName || '').toLowerCase();
+            return (t.includes(cleanTitle.toLowerCase()) || cleanTitle.toLowerCase().includes(t)) &&
+                   (a.includes(cleanArtist.toLowerCase()) || cleanArtist.toLowerCase().includes(a));
+          }) || results[0];
+
+          if (match && match.previewUrl) {
+            this.streamCache.set(cacheKey, match.previewUrl);
+            return match.previewUrl;
           }
         }
       } catch {}
     }
 
-    // 3. Fallback direct sur un stream audio garanti fonctionnel (ex: YOASOBI ou Apple Audio CDN public)
-    const universalWorkingStream = 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/4e/73/ae/4e73ae7f-96d6-5100-d3d3-3c50c28a1f19/mzaf_6031201848020469124.plus.aac.p.m4a';
-    this.streamCache.set(cacheKey, universalWorkingStream);
-    return universalWorkingStream;
+    return fallbackUrl || '';
   }
 
   private mapDeezerTrack(item: any): Track {
