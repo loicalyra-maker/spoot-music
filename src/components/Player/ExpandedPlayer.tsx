@@ -182,7 +182,9 @@ export const ExpandedPlayer: React.FC = () => {
             src={coverSrc}
             alt={currentTrack.title}
             onError={() => setImageError(true)}
-            className="w-full h-[72vh] sm:h-[76vh] object-cover object-center filter"
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
+            className="w-full h-full object-cover object-center"
           />
         )}
         {/* Ombre supérieure douce sous la barre de navigation */}
@@ -192,7 +194,7 @@ export const ExpandedPlayer: React.FC = () => {
       </div>
 
       {/* 1. TOP HEADER (Chevron Down, Artist Name in clean uppercase tracking, More Options) */}
-      <div className="w-full max-w-md mx-auto pt-[max(env(safe-area-inset-top)+10px,48px)] px-6 pb-2 flex items-center justify-between relative z-10">
+      <div className="w-full max-w-md mx-auto pt-[max(env(safe-area-inset-top)+14px,56px)] px-6 pb-2 flex items-center justify-between relative z-10">
         <button
           onClick={() => setExpandedPlayerOpen(false)}
           className="w-10 h-10 -ml-2 flex items-center justify-center text-white/90 hover:text-white active:scale-90 transition-transform cursor-pointer"

@@ -257,7 +257,7 @@ export const useSpootStore = create<SpootState>((set, get) => {
     // Lecture (Default SDM - CARTIER SANTOS correspondant aux captures 1 & 2)
     currentTrack: INITIAL_TRACKS[7],
     playbackStatus: 'Stopped',
-    positionMs: 96000,
+    positionMs: 0,
     durationMs: INITIAL_TRACKS[7].durationMs,
     volume: 0.85,
     shuffleMode: 'TrueRandom',
@@ -447,6 +447,12 @@ export const useSpootStore = create<SpootState>((set, get) => {
 
     // Lecture & Vrai Flux Audio
     playTrack: (track, newQueue) => {
+      const state = get();
+      // Si le morceau demandé est déjà en cours de lecture / pause, alterner sans redémarrer à zéro
+      if (state.currentTrack && (state.currentTrack.id === track.id || (state.currentTrack.title.toLowerCase() === track.title.toLowerCase() && state.currentTrack.artistName.toLowerCase() === track.artistName.toLowerCase()))) {
+        state.togglePlayPause();
+        return;
+      }
       let queue = newQueue || get().activeQueue;
       let idx = queue.findIndex((t) => t.id === track.id);
       if (idx === -1) {

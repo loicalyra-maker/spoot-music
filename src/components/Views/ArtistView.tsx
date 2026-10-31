@@ -114,7 +114,23 @@ export const ArtistView: React.FC = () => {
     ? albums.filter(a => a.type === 'single' || a.type === 'ep')
     : albums;
 
-  const isCurrentArtistPlaying = currentTrack?.artistName.toLowerCase() === effectiveArtist.name.toLowerCase() && isPlaying;
+  const isCurrentArtistTrack = Boolean(
+    currentTrack && (
+      currentTrack.artistId === effectiveArtist.id ||
+      currentTrack.artistName.toLowerCase().includes(effectiveArtist.name.toLowerCase()) ||
+      effectiveArtist.name.toLowerCase().includes(currentTrack.artistName.toLowerCase()) ||
+      topTracks.some(t => t.id === currentTrack.id)
+    )
+  );
+  const isCurrentArtistPlaying = isCurrentArtistTrack && isPlaying;
+
+  const handleArtistPlayClick = () => {
+    if (isCurrentArtistTrack) {
+      togglePlayPause();
+    } else if (topTracks.length > 0) {
+      playTrack(topTracks[0], topTracks);
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar select-none text-white pb-36">
@@ -159,13 +175,7 @@ export const ArtistView: React.FC = () => {
       <div className="px-8 py-6 flex items-center gap-6">
         {/* Grand Bouton Play Vert Spotify */}
         <button
-          onClick={() => {
-            if (isCurrentArtistPlaying) {
-              togglePlayPause();
-            } else if (topTracks.length > 0) {
-              playTrack(topTracks[0], topTracks);
-            }
-          }}
+          onClick={handleArtistPlayClick}
           className="w-14 h-14 rounded-full bg-spoot-neon flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-transform shadow-xl"
           title={isCurrentArtistPlaying ? "Mettre en pause" : `Écouter ${effectiveArtist.name}`}
         >
@@ -225,7 +235,13 @@ export const ArtistView: React.FC = () => {
             return (
               <div
                 key={track.id}
-                onClick={() => playTrack(track, topTracks)}
+                onClick={() => {
+                  if (isThisCurrent) {
+                    togglePlayPause();
+                  } else {
+                    playTrack(track, topTracks);
+                  }
+                }}
                 className={`flex items-center justify-between p-2 rounded-lg hover:bg-[#282828]/70 group cursor-pointer transition-colors ${
                   isThisCurrent ? 'bg-[#242424]' : ''
                 }`}

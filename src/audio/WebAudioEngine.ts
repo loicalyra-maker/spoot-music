@@ -233,20 +233,20 @@ export class WebAudioEngine {
       track.streamUrl = streamUrl;
     }
 
-    if (streamUrl) {
+    if (streamUrl && this.audioEl) {
+      // Réinitialisation absolue du flux à zéro au démarrage
+      this.audioEl.pause();
+      try {
+        this.audioEl.currentTime = 0;
+      } catch {}
       this.audioEl.src = streamUrl;
+      this.pendingSeekSec = startPositionMs > 0 ? (startPositionMs / 1000.0) : null;
+      try {
+        this.audioEl.currentTime = 0;
+      } catch {}
       const trackDurMs = track.durationMs || 180000;
-      
-      // Calcul du point de démarrage dans le flux
-      const targetStartSec = Math.max(0, startPositionMs / 1000.0);
-      if (this.audioEl.duration && !isNaN(this.audioEl.duration) && this.audioEl.duration > 0) {
-        const streamDur = this.audioEl.duration;
-        const mappedSec = streamDur >= 60
-          ? Math.min(streamDur - 0.5, targetStartSec)
-          : Math.min(streamDur - 0.5, (startPositionMs / trackDurMs) * (streamDur - 0.5));
-        this.audioEl.currentTime = Math.max(0, mappedSec);
-      } else {
-        this.pendingSeekSec = targetStartSec;
+      if (this.onPositionUpdateCallback) {
+        this.onPositionUpdateCallback(startPositionMs, trackDurMs);
       }
 
       try {

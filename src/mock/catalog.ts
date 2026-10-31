@@ -784,6 +784,84 @@ export const INITIAL_TRACKS: Track[] = [
       genre: 'Indie Pop'
     },
     lyrics: []
+  },
+  // Kendrick Lamar — Official & Vault Releases
+  {
+    id: 'kdot-prayer-vault',
+    isrc: 'US-UM7-22-00450',
+    title: 'Prayer (Mr. Morale Sessions / Unreleased Studio Master)',
+    artistId: '525046',
+    artistName: 'Kendrick Lamar',
+    albumId: 'alb-kdot-vault',
+    albumTitle: 'Archives & Inédits (Exclusivité Spoot)',
+    coverUrl: 'https://cdn-images.dzcdn.net/images/artist/be0a7c550567f4af0ed202d7235b74d6/1000x1000-000000-80-0-0.jpg',
+    streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/bf/f9/06/bff90680-e83c-246e-1da8-fbbe4508e820/mzaf_6097127506229983995.plus.aac.p.m4a',
+    durationMs: 212000,
+    sampleRate: 96000,
+    bitDepth: 24,
+    bitrateKbps: 4608,
+    formatLabel: 'Hi-Res Studio Master 24-bit / 96 kHz',
+    releaseDate: '2024-05-18',
+    playCount: 1850000,
+    lastPlayedTimestamp: Date.now(),
+    isFavorite: true,
+    isOfflineDownloaded: true,
+    palette: { primary: '#121212', secondary: '#00E676' },
+    acousticVector: {
+      bpm: 88,
+      camelotKey: '4A',
+      energy: 0.82,
+      valence: 0.65,
+      danceability: 0.72,
+      acousticness: 0.28,
+      loudnessLufs: -6.2,
+      decade: 2024,
+      genre: 'Rap US / Conscious Hip-Hop'
+    },
+    lyrics: [
+      { timeMs: 0, text: 'Lord, please protect my soul...' },
+      { timeMs: 4200, text: 'I made a prayer that the music would outlive my flesh' },
+      { timeMs: 8500, text: 'Before I take my final breath, look at the canvas I left' },
+      { timeMs: 14000, text: 'Prayer to the heavens, speak truth to power' }
+    ]
+  },
+  {
+    id: 'kdot-not-like-us',
+    isrc: 'US-UG1-24-03204',
+    title: 'Not Like Us',
+    artistId: '525046',
+    artistName: 'Kendrick Lamar',
+    albumId: 'alb-kdot-single',
+    albumTitle: 'Not Like Us',
+    coverUrl: 'https://cdn-images.dzcdn.net/images/cover/af056d5fa6167cfd1917dc0e08c11083/1000x1000-000000-80-0-0.jpg',
+    streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/bf/f9/06/bff90680-e83c-246e-1da8-fbbe4508e820/mzaf_6097127506229983995.plus.aac.p.m4a',
+    durationMs: 274000,
+    sampleRate: 96000,
+    bitDepth: 24,
+    bitrateKbps: 4608,
+    formatLabel: 'Hi-Res Lossless 24-bit / 96 kHz FLAC',
+    releaseDate: '2024-05-04',
+    playCount: 1420500000,
+    lastPlayedTimestamp: Date.now(),
+    isFavorite: true,
+    isOfflineDownloaded: false,
+    palette: { primary: '#242424', secondary: '#121212' },
+    acousticVector: {
+      bpm: 101,
+      camelotKey: '6A',
+      energy: 0.88,
+      valence: 0.70,
+      danceability: 0.84,
+      acousticness: 0.12,
+      loudnessLufs: -5.1,
+      decade: 2024,
+      genre: 'West Coast Hip-Hop'
+    },
+    lyrics: [
+      { timeMs: 0, text: 'Psst, I see dead people...' },
+      { timeMs: 5000, text: 'Mustard on the beat, ho' },
+      { timeMs: 9000, text: 'They not like us, they not like us' }
+    ]
   }
 ];
 

@@ -84,7 +84,8 @@ export const AlbumView: React.FC = () => {
     return count.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   };
 
-  const isCurrentAlbumPlaying = album.tracks.some(t => t.id === currentTrack?.id) && isPlaying;
+  const isCurrentAlbumActive = Boolean(currentTrack && album.tracks.some(t => t.id === currentTrack.id));
+  const isCurrentAlbumPlaying = isCurrentAlbumActive && isPlaying;
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar select-none text-white pb-36">
@@ -141,7 +142,7 @@ export const AlbumView: React.FC = () => {
           {/* Grand Bouton Play/Pause Vert Spotify */}
           <button
             onClick={() => {
-              if (isCurrentAlbumPlaying) {
+              if (isCurrentAlbumActive) {
                 togglePlayPause();
               } else if (album.tracks.length > 0) {
                 playTrack(album.tracks[0], album.tracks);
@@ -242,7 +243,13 @@ export const AlbumView: React.FC = () => {
                   key={track.id}
                   onMouseEnter={() => setHoveredTrackId(track.id)}
                   onMouseLeave={() => setHoveredTrackId(null)}
-                  onClick={() => playTrack(track, album.tracks)}
+                  onClick={() => {
+                    if (isThisCurrent) {
+                      togglePlayPause();
+                    } else {
+                      playTrack(track, album.tracks);
+                    }
+                  }}
                   className={`group hover:bg-[#282828]/60 rounded-md transition-colors cursor-pointer ${
                     isThisCurrent ? 'bg-[#242424]' : ''
                   }`}

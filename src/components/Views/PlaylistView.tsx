@@ -166,7 +166,8 @@ export const PlaylistView: React.FC = () => {
   const totalMins = Math.floor((totalDurationMs % 3600000) / 60000);
   const durationFormatted = totalHours > 0 ? `${totalHours} h ${totalMins} min` : `${totalMins} min`;
 
-  const isCurrentPlaylistPlaying = playlist.tracks.some(t => t.id === currentTrack?.id) && isPlaying;
+  const isCurrentPlaylistActive = Boolean(currentTrack && playlist.tracks.some(t => t.id === currentTrack.id));
+  const isCurrentPlaylistPlaying = isCurrentPlaylistActive && isPlaying;
 
   // Filtrage et Tri effectif des pistes
   let displayedTracks = [...playlist.tracks];
@@ -282,7 +283,7 @@ export const PlaylistView: React.FC = () => {
           {/* Grand Bouton Play/Pause Vert Spotify */}
           <button
             onClick={() => {
-              if (isCurrentPlaylistPlaying) {
+              if (isCurrentPlaylistActive) {
                 togglePlayPause();
               } else if (playlist.tracks.length > 0) {
                 playTrack(playlist.tracks[0], playlist.tracks);
@@ -524,7 +525,13 @@ export const PlaylistView: React.FC = () => {
                   key={`${track.id}-${idx}`}
                   onMouseEnter={() => setHoveredTrackId(track.id)}
                   onMouseLeave={() => setHoveredTrackId(null)}
-                  onClick={() => playTrack(track, displayedTracks)}
+                  onClick={() => {
+                    if (isThisCurrent) {
+                      togglePlayPause();
+                    } else {
+                      playTrack(track, displayedTracks);
+                    }
+                  }}
                   className={`group hover:bg-[#282828]/60 rounded-md transition-colors cursor-pointer ${
                     isThisCurrent ? 'bg-[#242424]' : ''
                   }`}

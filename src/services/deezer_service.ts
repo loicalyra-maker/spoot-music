@@ -959,15 +959,66 @@ export class DeezerService {
   public async getArtistUnreleased(artistName: string): Promise<any[]> {
     const clean = artistName.toLowerCase().trim();
     const vaultMap: Record<string, any[]> = {
+      'kendrick': [
+        { id: 'kdot-vault-1', title: 'Prayer (Mr. Morale Sessions / Unreleased Studio Master)', durationFormatted: '3:32', durationMs: 212000, viewCount: 1850000, coverUrl: 'https://cdn-images.dzcdn.net/images/artist/be0a7c550567f4af0ed202d7235b74d6/1000x1000-000000-80-0-0.jpg', streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/bf/f9/06/bff90680-e83c-246e-1da8-fbbe4508e820/mzaf_6097127506229983995.plus.aac.p.m4a' },
+        { id: 'kdot-vault-2', title: 'I\'m Better (feat. Sampha - Unreleased Studio Cut)', durationFormatted: '3:48', durationMs: 228000, viewCount: 1420000, coverUrl: 'https://cdn-images.dzcdn.net/images/artist/be0a7c550567f4af0ed202d7235b74d6/1000x1000-000000-80-0-0.jpg', streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/18/f7/e5/18f7e5b6-c67b-1178-08f2-895c2e91244e/mzaf_10444321743135406059.plus.aac.p.m4a' },
+        { id: 'kdot-vault-3', title: 'Cartoons & Cereal (feat. Gunplay - GKMC Vault Classic)', durationFormatted: '6:47', durationMs: 407000, viewCount: 3200000, coverUrl: 'https://cdn-images.dzcdn.net/images/artist/be0a7c550567f4af0ed202d7235b74d6/1000x1000-000000-80-0-0.jpg', streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/a4/09/be/a409be43-8515-77ee-6a75-b3a1a9e86971/mzaf_16382024987720974864.plus.aac.p.m4a' },
+        { id: 'kdot-vault-4', title: 'Gotta Love Me (feat. Baby Keem - Studio Session Leak)', durationFormatted: '2:45', durationMs: 165000, viewCount: 980000, coverUrl: 'https://cdn-images.dzcdn.net/images/artist/be0a7c550567f4af0ed202d7235b74d6/1000x1000-000000-80-0-0.jpg', streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/55/96/f8/5596f8c7-43ca-6a45-6c7c-fbf9c0d95101/mzaf_12891965687796441584.plus.aac.p.m4a' },
+        { id: 'kdot-vault-5', title: 'Pure (Mr. Morale Unreleased Leak Master)', durationFormatted: '3:15', durationMs: 195000, viewCount: 820000, coverUrl: 'https://cdn-images.dzcdn.net/images/artist/be0a7c550567f4af0ed202d7235b74d6/1000x1000-000000-80-0-0.jpg', streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview116/v4/4a/01/5e/4a015ecb-1ad3-4ec6-75fa-659f71c360b9/mzaf_3313204780509650392.plus.aac.p.m4a' },
+        { id: 'kdot-vault-6', title: 'Look Out for Detox (Classic Mixtape Tape Archive)', durationFormatted: '3:05', durationMs: 185000, viewCount: 2900000, coverUrl: 'https://cdn-images.dzcdn.net/images/artist/be0a7c550567f4af0ed202d7235b74d6/1000x1000-000000-80-0-0.jpg', streamUrl: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview126/v4/13/28/76/132876b6-bf25-b44c-3543-ec52d0fa557e/mzaf_13506144883464521473.plus.aac.p.m4a' }
+      ],
+      'damso': [
+        { id: 'dam-vault-1', title: 'Cœur de pirate (Unreleased Studio Leak 2021)', durationFormatted: '3:18', durationMs: 198000, viewCount: 890000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/b4198c9beee603f9ec6727218ea19142/1000x1000-000000-80-0-0.jpg' },
+        { id: 'dam-vault-2', title: 'Ipséité Intro (Démo Studio 2017 Archive)', durationFormatted: '2:45', durationMs: 165000, viewCount: 1100000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/b4198c9beee603f9ec6727218ea19142/1000x1000-000000-80-0-0.jpg' },
+        { id: 'dam-vault-3', title: 'QALF Session (Leak Bruxelles Inédit)', durationFormatted: '3:30', durationMs: 210000, viewCount: 740000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/b4198c9beee603f9ec6727218ea19142/1000x1000-000000-80-0-0.jpg' },
+        { id: 'dam-vault-4', title: 'Ouzbek (Inédit Théâtre Antique)', durationFormatted: '3:02', durationMs: 182000, viewCount: 630000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/b4198c9beee603f9ec6727218ea19142/1000x1000-000000-80-0-0.jpg' }
+      ],
+      'drake': [
+        { id: 'drk-vault-1', title: 'Neatly (Unreleased Leak CLB Era)', durationFormatted: '3:12', durationMs: 192000, viewCount: 1650000 },
+        { id: 'drk-vault-2', title: 'Vital (Unreleased Scorpion Leak Master)', durationFormatted: '3:55', durationMs: 235000, viewCount: 2100000 },
+        { id: 'drk-vault-3', title: 'Lie to Me (Studio Archive Leak)', durationFormatted: '2:48', durationMs: 168000, viewCount: 1200000 },
+        { id: 'drk-vault-4', title: 'At the Gates (feat. Lil Uzi Vert - Unreleased)', durationFormatted: '3:25', durationMs: 205000, viewCount: 1800000 }
+      ],
+      'carti': [
+        { id: 'crt-vault-1', title: '24 Songs / Made It This Far (V2 Era Leak Master)', durationFormatted: '3:35', durationMs: 215000, viewCount: 4500000 },
+        { id: 'crt-vault-2', title: 'Cancun (SEGA Edition Studio Archive)', durationFormatted: '2:10', durationMs: 130000, viewCount: 6800000 },
+        { id: 'crt-vault-3', title: 'Skeleton (Prod. Pi\'erre Bourne Leak)', durationFormatted: '2:32', durationMs: 152000, viewCount: 3200000 },
+        { id: 'crt-vault-4', title: 'Molly / No Stylist (Unreleased Studio Master)', durationFormatted: '3:10', durationMs: 190000, viewCount: 5100000 }
+      ],
+      'travis': [
+        { id: 'trv-vault-1', title: 'Heartbeat (Utopia Leak Session Master)', durationFormatted: '3:20', durationMs: 200000, viewCount: 2400000 },
+        { id: 'trv-vault-2', title: 'Too Many Chances (Astroworld Unreleased Archive)', durationFormatted: '3:45', durationMs: 225000, viewCount: 1900000 },
+        { id: 'trv-vault-3', title: 'Trill Mode (Unreleased Studio Demo)', durationFormatted: '2:55', durationMs: 175000, viewCount: 1300000 }
+      ],
+      'kanye': [
+        { id: 'ye-vault-1', title: 'Never See Me Again (Good Ass Job Legend Archive)', durationFormatted: '8:40', durationMs: 520000, viewCount: 5800000 },
+        { id: 'ye-vault-2', title: 'Mama\'s Boyfriend (MBDTF Sessions Unreleased)', durationFormatted: '3:58', durationMs: 238000, viewCount: 3400000 },
+        { id: 'ye-vault-3', title: 'Can U Be (feat. Travis Scott - TurboGrafx16 Leak)', durationFormatted: '3:15', durationMs: 195000, viewCount: 4200000 }
+      ],
+      'juice': [
+        { id: 'jw-vault-1', title: 'Rental / Cha-Ching (Unreleased Studio Master)', durationFormatted: '4:12', durationMs: 252000, viewCount: 7200000 },
+        { id: 'jw-vault-2', title: 'KTM Drip (Unreleased Leak)', durationFormatted: '3:35', durationMs: 215000, viewCount: 4100000 },
+        { id: 'jw-vault-3', title: 'Adore You (Unreleased Archive)', durationFormatted: '3:05', durationMs: 185000, viewCount: 3600000 }
+      ],
       'sdm': [
-        { id: 'sdm-vault-1', title: 'CARTIER SANTOS (Studio V1 Session Extended)', durationFormatted: '3:45', durationMs: 225000, viewCount: 620000 },
-        { id: 'sdm-vault-2', title: 'ALVALM Intro (Unreleased Leak Demo)', durationFormatted: '2:58', durationMs: 178000, viewCount: 480000 },
-        { id: 'sdm-vault-3', title: 'Bolide Allemand (Live Bercy Acapella Exclusive)', durationFormatted: '3:20', durationMs: 200000, viewCount: 750000 }
+        { id: 'sdm-vault-1', title: 'CARTIER SANTOS (Studio V1 Session Extended)', durationFormatted: '3:45', durationMs: 225000, viewCount: 620000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/640220bd3d80561118391eef3a24fb53/1000x1000-000000-80-0-0.jpg' },
+        { id: 'sdm-vault-2', title: 'ALVALM Intro (Unreleased Leak Demo)', durationFormatted: '2:58', durationMs: 178000, viewCount: 480000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/640220bd3d80561118391eef3a24fb53/1000x1000-000000-80-0-0.jpg' },
+        { id: 'sdm-vault-3', title: 'Bolide Allemand (Live Bercy Acapella Exclusive)', durationFormatted: '3:20', durationMs: 200000, viewCount: 750000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/640220bd3d80561118391eef3a24fb53/1000x1000-000000-80-0-0.jpg' },
+        { id: 'sdm-vault-4', title: '8 Réseau (Freestyle Inédit Studio Session)', durationFormatted: '2:50', durationMs: 170000, viewCount: 510000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/640220bd3d80561118391eef3a24fb53/1000x1000-000000-80-0-0.jpg' }
       ],
       'tiakola': [
         { id: 'tia-vault-1', title: 'BDLM (Solo Studio Cut Demo)', durationFormatted: '3:12', durationMs: 192000, viewCount: 540000 },
         { id: 'tia-vault-2', title: 'Mélo Tape (Leak Archive 2024)', durationFormatted: '3:05', durationMs: 185000, viewCount: 410000 },
-        { id: 'tia-vault-3', title: 'La Clé (Acoustic Guitar Session)', durationFormatted: '2:48', durationMs: 168000, viewCount: 690000 }
+        { id: 'tia-vault-3', title: 'La Clé (Acoustic Guitar Session)', durationFormatted: '2:48', durationMs: 168000, viewCount: 690000 },
+        { id: 'tia-vault-4', title: 'Mode Avion (Inédit Studio Session)', durationFormatted: '2:52', durationMs: 172000, viewCount: 450000 }
+      ],
+      'gazo': [
+        { id: 'gz-vault-1', title: 'Drill FR (Maquette Studio Exclusive)', durationFormatted: '3:10', durationMs: 190000, viewCount: 680000 },
+        { id: 'gz-vault-2', title: 'K-Maro (Unreleased Leak 2024)', durationFormatted: '2:45', durationMs: 165000, viewCount: 590000 }
+      ],
+      'ninho': [
+        { id: 'ni-vault-1', title: 'M.I.L.S 4 Intro (Maquette Studio Inédite)', durationFormatted: '3:25', durationMs: 205000, viewCount: 820000 },
+        { id: 'ni-vault-2', title: 'VVS (Unreleased Demo Leak)', durationFormatted: '2:55', durationMs: 175000, viewCount: 710000 }
       ],
       'vacra': [
         { id: 'vac-vault-1', title: 'Tiki Taka (Acoustic Session Inédite)', durationFormatted: '3:15', durationMs: 195000, viewCount: 380000 },
