@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="./brand/spoot_badge.png" />
+    <link rel="apple-touch-icon" href="./brand/icon-192.png" />
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Spoot Music" />
+    <meta name="theme-color" content="#03050f" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <title>Spoot Music — All your music. Zero noise.</title>
+    <style>
+      /* Empêche tout scintillement blanc au chargement */
+      html, body {
+        background-color: #0B0B0B;
+        color: #FFFFFF;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        -moz-user-select: none;
+             user-select: none;
+        -webkit-user-select: none;
+      }
+      /* Scrollbar épurée Spoot */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #242424;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #333333;
+      }
+    </style>
+    <script type="module" crossorigin src="./assets/index-DSHPTvWd.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-C-AjStOu.css">
+  </head>
+  <body class="bg-spoot-bg text-white font-sans antialiased selection:bg-spoot-neon selection:text-black">
+    <!-- SVG Filters for iOS 26 Liquid Glass Slider & Lens Effects -->
+    <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" aria-hidden="true">
+      <defs>
+        <filter id="mini-liquid-lens" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="0.6" result="blur" />
+          <feDisplacementMap in="SourceGraphic" in2="blur" scale="3" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </defs>
+    </svg>
+    <div id="root"></div>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          const swUrl = './sw.js';
+          navigator.serviceWorker.register(swUrl)
+            .then((reg) => console.log('[PWA] Service Worker actif:', reg.scope))
+            .catch((err) => console.warn('[PWA] Service Worker erreur:', err));
+        });
+      }
+    </script>
+  </body>
+</html>
