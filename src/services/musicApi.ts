@@ -1,5 +1,6 @@
 // Spoot Music — Real Music & Metadata Service (Deezer, iTunes, Invidious / Spotube Architecture)
 import { Track, Album, Artist } from '../types';
+import { streamResolver } from './StreamResolverService';
 
 export interface RealPodcast {
   id: string;
@@ -148,17 +149,25 @@ export class MusicApiService {
    * Fonctionne 100% de manière autonome sans serveur local (iTunes CDN Cloud, open CORS)
    */
   public async resolveFullAudioStream(artist: string, title: string, fallbackUrl?: string): Promise<string> {
-    // Si un flux audio fonctionnel est déjà fourni, on l'utilise directement
-    if (fallbackUrl && fallbackUrl.startsWith('http')) {
-      return fallbackUrl;
-    }
-
     const cacheKey = `${artist}-${title}`.toLowerCase().trim();
     if (this.streamCache.has(cacheKey)) {
       return this.streamCache.get(cacheKey)!;
     }
 
-    // Nettoyage intelligent des termes de recherche
+    // 0. Priorité absolue : Moteur Audio Réel Intégral via yt-dlp backend
+    try {
+      const fullAudio = await streamResolver.resolveFullAudio(artist, title);
+      if (fullAudio && !streamResolver.is30sPreview(fullAudio)) {
+        this.streamCache.set(cacheKey, fullAudio);
+        return fullAudio;
+      }
+    } catch {}
+
+    // Si un flux audio fonctionnel non-preview est déjà fourni, on l'utilise
+    if (fallbackUrl && fallbackUrl.startsWith('http') && !streamResolver.is30sPreview(fallbackUrl)) {
+      return fallbackUrl;
+    }
+
     const cleanArtist = (artist || '').split(/[,&]/)[0].replace(/\(.*\)/g, '').replace(/feat\..*/i, '').trim();
     const cleanTitle = (title || '').replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '').replace(/feat\..*/i, '').trim();
 

@@ -39,30 +39,38 @@ export default async function handler(req, res) {
     const data = await response.json();
     const contents = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
 
+    const JUNK_KEYWORDS = ['reaction', 'review', 'instrumental remake', 'type beat', 'cover', 'slowed', 'sped up', 'reverb', 'mashup', 'tiktok'];
+    const isJunk = (title) => {
+      const lower = (title || '').toLowerCase();
+      return JUNK_KEYWORDS.some((kw) => lower.includes(kw));
+    };
+
     const results = contents
       .filter((item) => item.videoRenderer && item.videoRenderer.videoId)
-      .slice(0, 8)
-      .map((item, idx) => {
+      .map((item) => {
         const v = item.videoRenderer;
+        const title = v.title?.runs?.[0]?.text || '';
         const durText = v.lengthText?.simpleText || '3:30';
         const parts = durText.split(':').map(Number);
         let sec = 210;
         if (parts.length === 2) sec = parts[0] * 60 + parts[1];
         else if (parts.length === 3) sec = parts[0] * 3600 + parts[1] * 60 + parts[2];
-
-        return {
-          id: v.videoId,
-          youtubeId: v.videoId,
-          title: v.title?.runs?.[0]?.text || `Inédit #${idx + 1}`,
-          artistName: artist,
-          durationFormatted: durText,
-          durationMs: sec * 1000,
-          url: `https://www.youtube.com/watch?v=${v.videoId}`,
-          coverUrl: v.thumbnail?.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
-          viewCount: 650000 - idx * 45000,
-          uploader: v.ownerText?.runs?.[0]?.text || 'Vault Archive',
-        };
-      });
+        return { v, title, durText, sec };
+      })
+      .filter(({ title, sec }) => !isJunk(title) && sec >= 90 && sec <= 360)
+      .slice(0, 8)
+      .map(({ v, title, durText, sec }, idx) => ({
+        id: v.videoId,
+        youtubeId: v.videoId,
+        title: title || `Inédit #${idx + 1}`,
+        artistName: artist,
+        durationFormatted: durText,
+        durationMs: sec * 1000,
+        url: `https://www.youtube.com/watch?v=${v.videoId}`,
+        coverUrl: v.thumbnail?.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
+        viewCount: 650000 - idx * 45000,
+        uploader: v.ownerText?.runs?.[0]?.text || 'Vault Archive',
+      }));
 
     return res.status(200).json({ results });
   } catch (err) {

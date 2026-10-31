@@ -10,6 +10,10 @@ import { useSpootStore } from '../../store/useSpootStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { deezerService, DeezerPodcast, DeezerEpisode } from '../../services/deezer_service';
 import { Track } from '../../types';
+import { useHomeLayoutStore, HomeWidget } from '../../store/useHomeLayoutStore';
+import { HomeCustomizerModal } from './HomeCustomizerModal';
+import { ImageWithFallback } from '../Common/ImageWithFallback';
+import { Sliders } from 'lucide-react';
 
 export const HomeView: React.FC = () => {
   const {
@@ -32,6 +36,7 @@ export const HomeView: React.FC = () => {
     sections,
   } = useThemeStore();
 
+  const { widgets, openCustomizer } = useHomeLayoutStore();
   const isLiquidGlass = themeMode === 'liquid-glass';
   const isPlaying = playbackStatus === 'Playing';
 
@@ -712,7 +717,7 @@ export const HomeView: React.FC = () => {
                   <Heart className="w-10 h-10 fill-white text-white" />
                 </div>
               ) : pl.coverUrl ? (
-                <img src={pl.coverUrl} alt={pl.title} className="w-full h-full object-cover" />
+                <ImageWithFallback src={pl.coverUrl} alt={pl.title} className="w-full h-full object-cover" />
               ) : (
                 <Music className="w-10 h-10 text-cyan-300/60" />
               )}
@@ -1220,6 +1225,15 @@ export const HomeView: React.FC = () => {
               Livres audio
             </button>
           </div>
+
+          <button
+            onClick={openCustomizer}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] text-white/80 hover:text-white border border-white/[0.08] text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95"
+            title="Personnaliser les widgets de l'accueil (home_layout.json)"
+          >
+            <Sliders className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Personnaliser l'accueil</span>
+          </button>
         </div>
 
         {/* VUE PODCASTS EXCLUSIVE */}
@@ -1476,7 +1490,7 @@ export const HomeView: React.FC = () => {
           >
             <div className="flex items-start justify-between pb-4 border-b border-white/[0.08]">
               <div className="flex items-center gap-4">
-                <img
+                <ImageWithFallback
                   src={selectedPodcast.coverUrl}
                   alt={selectedPodcast.title}
                   className="w-16 h-16 rounded-2xl object-cover shadow-md"
@@ -1529,6 +1543,9 @@ export const HomeView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de personnalisation modulaire (home_layout.json) */}
+      <HomeCustomizerModal />
     </div>
   );
 };

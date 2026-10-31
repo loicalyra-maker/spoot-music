@@ -4,6 +4,12 @@
 import { Track, Album, Artist, LyricLine } from '../types';
 import { INITIAL_ARTISTS, INITIAL_TRACKS, INITIAL_ALBUMS } from '../mock/catalog';
 
+export interface ArtistDiscographyClean {
+  albums: Album[];
+  singlesAndEPs: Album[];
+  compilationsAndAppearances: Album[];
+}
+
 export interface DeezerArtistDetails extends Artist {
   nbFans: number;
   nbAlbums: number;
@@ -822,6 +828,103 @@ export class DeezerService {
   /**
    * Discographie Complète d'un Artiste (Albums, Singles, EP)
    */
+    /**
+   * Discographie Épurée & Filtrée avec Élimination Stricte des Albums Fantômes (Tributes, Covers, Karaoke)
+   * et séparation nette en 3 collections : Albums, Singles & EP, Apparitions & Compilations.
+   */
+  public async getArtistDiscographyClean(artistId: string, limit: number = 60): Promise<ArtistDiscographyClean> {
+    const cleanId = artistId.replace(/^art-/, '').replace(/^dz-/, '').trim();
+    const isNumericId = /^\d+$/.test(cleanId);
+    const currentArtistId = isNumericId ? parseInt(cleanId, 10) : null;
+
+    let rawList: any[] = [];
+
+    if (isNumericId) {
+      try {
+        const data = await this.fetchDeezer<any>(`artist/${cleanId}/albums`, { limit });
+        if (data?.data && Array.isArray(data.data)) {
+          rawList = data.data;
+        }
+      } catch {}
+    }
+
+    if (rawList.length === 0) {
+      const artistName = this.artistCache.get(cleanId)?.name || cleanId;
+      try {
+        const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(artistName)}&entity=album&limit=${limit}`);
+        if (itRes.ok) {
+          const itData = await itRes.json();
+          if (itData.results && Array.isArray(itData.results)) {
+            rawList = itData.results.map((alb: any) => ({
+              id: String(alb.collectionId),
+              title: alb.collectionName,
+              record_type: alb.trackCount <= 3 ? 'single' : 'album',
+              release_date: alb.releaseDate,
+              cover_xl: (alb.artworkUrl100 || '').replace('100x100bb', '1000x1000bb'),
+              artist: { id: currentArtistId, name: alb.artistName },
+              nb_tracks: alb.trackCount
+            }));
+          }
+        }
+      } catch {}
+    }
+
+    const JUNK_ALBUM_TERMS = ['tribute', 'covers', 'cover', 'karaoke', 'piano', 'instrumental', 'remix collection'];
+    const isJunk = (title: string) => {
+      const lower = (title || '').toLowerCase();
+      return JUNK_ALBUM_TERMS.some(term => lower.includes(term));
+    };
+
+    const mapAlbum = (alb: any, forcedType?: 'album' | 'single' | 'ep'): Album => ({
+      id: String(alb.id),
+      title: alb.title,
+      artistId: cleanId,
+      artistName: alb.artist?.name || this.artistCache.get(cleanId)?.name || 'Artiste',
+      coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+      releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
+      type: forcedType || (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album'),
+      trackCount: alb.nb_tracks || 10,
+      totalDurationMs: (alb.nb_tracks || 10) * 200000,
+      tracks: []
+    });
+
+    // 1. Albums Studios Officiels : record_type === 'album', pas de junk, artistId correspondant
+    const albums = rawList
+      .filter((alb: any) => {
+        const isRecAlbum = alb.record_type === 'album';
+        const notJunk = !isJunk(alb.title);
+        const matchesArtist = !currentArtistId || !alb.artist?.id || alb.artist.id === currentArtistId;
+        return isRecAlbum && notJunk && matchesArtist;
+      })
+      .map(alb => mapAlbum(alb, 'album'));
+
+    // 2. Singles & EPs Officiels
+    const singlesAndEPs = rawList
+      .filter((alb: any) => {
+        const isSingleOrEp = alb.record_type === 'single' || alb.record_type === 'ep';
+        const notJunk = !isJunk(alb.title);
+        const matchesArtist = !currentArtistId || !alb.artist?.id || alb.artist.id === currentArtistId;
+        return isSingleOrEp && notJunk && matchesArtist;
+      })
+      .map(alb => mapAlbum(alb, alb.record_type === 'ep' ? 'ep' : 'single'));
+
+    // 3. Apparitions & Compilations : record_type === 'compile' ou apparitions featurings / artistes différents
+    const compilationsAndAppearances = rawList
+      .filter((alb: any) => {
+        const isCompile = alb.record_type === 'compile';
+        const isOtherArtist = currentArtistId && alb.artist?.id && alb.artist.id !== currentArtistId;
+        const hasCompileTerm = (alb.title || '').toLowerCase().includes('best of') || (alb.title || '').toLowerCase().includes('compilation');
+        return (isCompile || isOtherArtist || hasCompileTerm) && !isJunk(alb.title);
+      })
+      .map(alb => mapAlbum(alb, 'album'));
+
+    return {
+      albums,
+      singlesAndEPs,
+      compilationsAndAppearances
+    };
+  }
+
   public async getArtistAlbums(artistId: string, limit: number = 24): Promise<Album[]> {
     const cleanId = artistId.replace(/^art-/, '').replace(/^dz-/, '').trim();
     const isNumericId = /^\d+$/.test(cleanId);

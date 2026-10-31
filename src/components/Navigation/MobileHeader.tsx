@@ -4,10 +4,12 @@
 
 import React from 'react';
 import { useSpootStore } from '../../store/useSpootStore';
-import { Settings } from 'lucide-react';
+import { Settings, Sliders } from 'lucide-react';
+import { useHomeLayoutStore } from '../../store/useHomeLayoutStore';
 import { SpootLogo } from '../Branding/SpootLogo';
 
 export const MobileHeader: React.FC = () => {
+  const { openCustomizer } = useHomeLayoutStore();
   const {
     userProfile,
     setProfileModalOpen,
@@ -59,13 +61,22 @@ export const MobileHeader: React.FC = () => {
 
         {/* Droite : Bouton Paramètres (Strictement sur l'Accueil pour ne pas gêner la recherche) */}
         {activeView === 'home' && (
-          <button
+          <div className="flex items-center gap-2">
+            <button
+              onClick={openCustomizer}
+              className="w-9 h-9 rounded-full flex items-center justify-center bg-cyan-500/15 hover:bg-cyan-500/25 active:bg-cyan-500/35 text-cyan-300 border border-cyan-400/30 backdrop-blur-xl shadow-md transition-all cursor-pointer active:scale-95"
+              title="Personnaliser les widgets d'accueil"
+            >
+              <Sliders className="w-4 h-4 text-cyan-300" />
+            </button>
+            <button
             onClick={() => setActiveView('settings')}
             className="w-9 h-9 rounded-full flex items-center justify-center bg-white/[0.14] hover:bg-white/[0.22] active:bg-white/[0.28] text-white/90 hover:text-white border border-white/[0.25] backdrop-blur-xl shadow-[0_4px_16px_rgba(0,0,0,0.3)] transition-all cursor-pointer active:scale-95"
             title="Paramètres de l'application"
           >
             <Settings className="w-4 h-4 text-cyan-300" />
           </button>
+          </div>
         )}
       </div>
 

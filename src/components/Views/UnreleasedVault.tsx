@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Unlock, ChevronDown, ChevronUp, Play, Pause, RefreshCw, Volume2, Sparkles, Music2 } from 'lucide-react';
+import { ImageWithFallback } from '../Common/ImageWithFallback';
 import { VaultTrack, Track } from '../../types';
 import { useSpootStore } from '../../store/useSpootStore';
 import { deezerService } from '../../services/deezer_service';
@@ -338,8 +339,16 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
               ))}
             </div>
           ) : vaultTracks.length === 0 ? (
-            <div className="py-8 text-center text-xs text-white/50">
-              Aucune archive non officielle trouvée pour cet artiste pour le moment.
+            <div className="py-12 text-center">
+              <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-3 text-white/40">
+                <Music2 className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-semibold text-white/70">
+                Aucune archive vérifiée disponible pour cet artiste
+              </p>
+              <p className="text-xs text-white/40 mt-1 max-w-sm mx-auto">
+                Le filtre strict d'inédits (excluant réactions, remakes et hors durée 1m30 - 6m) n'a trouvé aucun enregistrement studio valide.
+              </p>
             </div>
           ) : (
             /* LISTE DES PISTES VAULT DU CACHE / DIRECT */
@@ -376,21 +385,14 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
                         )}
                       </div>
 
-                      {/* Pochette Carrée YouTube HD */}
+                      {/* Pochette Carrée YouTube HD avec ImageWithFallback */}
                       <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0 bg-white/5 border border-white/10 relative">
-                        {vt.coverUrl ? (
-                          <img
-                            src={vt.coverUrl}
-                            alt={vt.title}
-                            referrerPolicy="no-referrer"
-                            crossOrigin="anonymous"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-white/5 text-white/30">
-                            <Music2 className="w-4 h-4" />
-                          </div>
-                        )}
+                        <ImageWithFallback
+                          src={vt.coverUrl}
+                          alt={vt.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          iconClassName="w-4 h-4"
+                        />
                       </div>
 
                       {/* Titre & Uploader / Metadonnées */}

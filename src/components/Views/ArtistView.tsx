@@ -1,15 +1,18 @@
 // Spoot Music — Official Dynamic Artist View Component
-// Reproduction fidèle 100% de la capture Spotify Desktop (Vacra, Screenshot 2)
+// 100% Faithful Spotify Desktop & Apple ProMotion 120 FPS Layout
+// Strict Discography Clean (Albums, Singles/EP, Collapsible Apparitions/Compilations),
+// Resilient Image Fallbacks & Fixed Play/Pause Engine.
 
 import React, { useState, useEffect } from 'react';
 import {
   Play, Pause, Shuffle, MoreHorizontal, Check, Disc, Heart,
-  ShieldCheck, Clock, ExternalLink
+  ShieldCheck, Clock, ExternalLink, ChevronDown, ChevronUp, Layers
 } from 'lucide-react';
 import { useSpootStore } from '../../store/useSpootStore';
 import { deezerService, DeezerArtistDetails } from '../../services/deezer_service';
 import { Track, Album, Artist } from '../../types';
 import { UnreleasedVault } from './UnreleasedVault';
+import { ImageWithFallback } from '../Common/ImageWithFallback';
 
 export const ArtistView: React.FC = () => {
   const {
@@ -21,12 +24,14 @@ export const ArtistView: React.FC = () => {
 
   const [artist, setArtist] = useState<DeezerArtistDetails | null>(null);
   const [topTracks, setTopTracks] = useState<Track[]>([]);
-  const [albums, setAlbums] = useState<Album[]>([]);
+  const [cleanAlbums, setCleanAlbums] = useState<Album[]>([]);
+  const [cleanSingles, setCleanSingles] = useState<Album[]>([]);
+  const [compilations, setCompilations] = useState<Album[]>([]);
+  const [isCompilationsOpen, setIsCompilationsOpen] = useState(false);
   const [relatedArtists, setRelatedArtists] = useState<Artist[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAllTracks, setShowAllTracks] = useState(false);
   const [isFollowed, setIsFollowed] = useState(false);
-  const [discoTab, setDiscoTab] = useState<'popular' | 'albums' | 'singles'>('popular');
 
   // Chargement officiel via Deezer Public API + Fallback Cloud iTunes mondial
   useEffect(() => {
@@ -34,10 +39,10 @@ export const ArtistView: React.FC = () => {
     setLoading(true);
 
     const targetId = activeArtistId 
-      ? activeArtistId.replace(/^art-/, '').replace(/^dz-/, '') 
+      ? activeArtistId.replace(/^art-/, '').replace(/^dz-/, '').trim() 
       : '8673550'; // Par défaut : Vacra
 
-    // Timeout de sécurité : garantit que l'écran ne reste jamais bloqué plus de 300ms
+    // Timeout de sécurité : garantit que l'écran ne reste jamais bloqué
     const safetyTimer = setTimeout(() => {
       if (isMounted) setLoading(false);
     }, 450);
@@ -52,16 +57,18 @@ export const ArtistView: React.FC = () => {
 
       Promise.allSettled([
         deezerService.getArtistTopTracks(targetId, 10, listeners),
-        deezerService.getArtistAlbums(targetId, 24),
+        deezerService.getArtistDiscographyClean(targetId, 60),
         deezerService.getArtistRelated(targetId, 8),
-      ]).then(([tracksRes, albumsRes, relatedRes]) => {
+      ]).then(([tracksRes, discoRes, relatedRes]) => {
         if (!isMounted) return;
 
         if (tracksRes.status === 'fulfilled' && tracksRes.value.length > 0) {
           setTopTracks(tracksRes.value);
         }
-        if (albumsRes.status === 'fulfilled' && albumsRes.value.length > 0) {
-          setAlbums(albumsRes.value);
+        if (discoRes.status === 'fulfilled' && discoRes.value) {
+          setCleanAlbums(discoRes.value.albums);
+          setCleanSingles(discoRes.value.singlesAndEPs);
+          setCompilations(discoRes.value.compilationsAndAppearances);
         }
         if (relatedRes.status === 'fulfilled' && relatedRes.value.length > 0) {
           setRelatedArtists(relatedRes.value);
@@ -97,7 +104,7 @@ export const ArtistView: React.FC = () => {
   };
 
   const formatPlays = (count: number) => {
-    return count.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    return count.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, ' ');
   };
 
   const formatDuration = (ms: number) => {
@@ -107,12 +114,6 @@ export const ArtistView: React.FC = () => {
   };
 
   const displayedTracks = showAllTracks ? topTracks : topTracks.slice(0, 5);
-
-  const filteredAlbums = discoTab === 'albums'
-    ? albums.filter(a => a.type === 'album')
-    : discoTab === 'singles'
-    ? albums.filter(a => a.type === 'single' || a.type === 'ep')
-    : albums;
 
   const isCurrentArtistTrack = Boolean(
     currentTrack && (
@@ -134,17 +135,13 @@ export const ArtistView: React.FC = () => {
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar select-none text-white pb-36">
-      {/* 1. Grande Bannière Hero avec photo officielle HD en pleine largeur (Screenshot 2) */}
+      {/* 1. Grande Bannière Hero avec photo officielle HD en pleine largeur */}
       <div className="relative h-72 sm:h-80 md:h-96 w-full overflow-hidden flex flex-col justify-end p-8 bg-[#181818]">
-        {/* Photo d'arrière-plan HD avec fallback automatique vers le top album si erreur */}
-        <img
+        {/* Photo d'arrière-plan HD avec ImageWithFallback */}
+        <ImageWithFallback
           src={effectiveArtist.pictureXl}
           alt={effectiveArtist.name}
-          onError={(e) => {
-            if (topTracks.length > 0 && topTracks[0].coverUrl) {
-              e.currentTarget.src = topTracks[0].coverUrl;
-            }
-          }}
+          fallbackSrc={topTracks[0]?.coverUrl}
           className="absolute inset-0 w-full h-full object-cover object-center filter brightness-90"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-[#121212]/40 to-transparent" />
@@ -176,7 +173,7 @@ export const ArtistView: React.FC = () => {
         {/* Grand Bouton Play Vert Spotify */}
         <button
           onClick={handleArtistPlayClick}
-          className="w-14 h-14 rounded-full bg-spoot-neon flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-transform shadow-xl"
+          className="w-14 h-14 rounded-full bg-spoot-neon flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-transform shadow-xl cursor-pointer"
           title={isCurrentArtistPlaying ? "Mettre en pause" : `Écouter ${effectiveArtist.name}`}
         >
           {isCurrentArtistPlaying ? (
@@ -186,9 +183,13 @@ export const ArtistView: React.FC = () => {
           )}
         </button>
 
-        {/* Miniature de l'artiste */}
+        {/* Miniature de l'artiste avec Fallback */}
         <div className="w-9 h-9 rounded-full overflow-hidden shadow border border-white/10 hidden sm:block">
-          <img src={effectiveArtist.avatarUrl} alt="" className="w-full h-full object-cover" />
+          <ImageWithFallback
+            src={effectiveArtist.avatarUrl}
+            alt=""
+            className="w-full h-full object-cover"
+          />
         </div>
 
         {/* Bouton Aléatoire */}
@@ -199,16 +200,16 @@ export const ArtistView: React.FC = () => {
               playTrack(topTracks[randIdx], topTracks);
             }
           }}
-          className="text-[#b3b3b3] hover:text-white transition-colors"
+          className="text-[#b3b3b3] hover:text-white transition-colors cursor-pointer"
           title="Lecture aléatoire"
         >
           <Shuffle className="w-6 h-6" />
         </button>
 
-        {/* Bouton S'abonner (Screenshot 2) */}
+        {/* Bouton S'abonner */}
         <button
           onClick={() => setIsFollowed(!isFollowed)}
-          className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-all hover:scale-105 ${
+          className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-all hover:scale-105 cursor-pointer ${
             isFollowed
               ? 'border-spoot-neon text-spoot-neon bg-spoot-neon/10'
               : 'border-[#727272] text-white hover:border-white'
@@ -218,19 +219,19 @@ export const ArtistView: React.FC = () => {
         </button>
 
         {/* Options (...) */}
-        <button className="text-[#b3b3b3] hover:text-white transition-colors" title="Plus d'options">
+        <button className="text-[#b3b3b3] hover:text-white transition-colors cursor-pointer" title="Plus d'options">
           <MoreHorizontal className="w-6 h-6" />
         </button>
       </div>
 
-      {/* 3. Section "Populaires" (Titres 1 à 5, Screenshot 2) */}
+      {/* 3. Section "Populaires" (Titres 1 à 5 ou 1 à 10) */}
       <section className="px-8 space-y-4">
         <h2 className="text-2xl font-bold tracking-tight text-white">Populaires</h2>
 
         <div className="space-y-1">
           {displayedTracks.map((track, idx) => {
-            const isThisPlaying = currentTrack?.id === track.id && isPlaying;
-            const isThisCurrent = currentTrack?.id === track.id;
+            const isThisCurrent = currentTrack?.id === track.id || currentTrack?.title === track.title;
+            const isThisPlaying = isThisCurrent && isPlaying;
 
             return (
               <div
@@ -242,163 +243,241 @@ export const ArtistView: React.FC = () => {
                     playTrack(track, topTracks);
                   }
                 }}
-                className={`flex items-center justify-between p-2 rounded-lg hover:bg-[#282828]/70 group cursor-pointer transition-colors ${
-                  isThisCurrent ? 'bg-[#242424]' : ''
+                className={`flex items-center justify-between p-2.5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer group ${
+                  isThisCurrent ? 'bg-white/5' : ''
                 }`}
               >
-                {/* Numéro, Pochette, Titre */}
-                <div className="flex items-center gap-4 flex-1 min-w-0 pr-4">
-                  <span className="w-6 text-center text-sm font-semibold text-[#727272] group-hover:hidden">
-                    {isThisPlaying ? <span className="text-spoot-neon">▶</span> : idx + 1}
+                {/* Index / Play Button + Titre + Image */}
+                <div className="flex items-center gap-4 min-w-0 flex-1">
+                  <span className="w-4 text-sm font-bold text-[#b3b3b3] text-right group-hover:hidden">
+                    {isThisPlaying ? (
+                      <span className="text-spoot-neon animate-pulse">▶</span>
+                    ) : (
+                      idx + 1
+                    )}
                   </span>
-                  <button className="w-6 text-center text-white hidden group-hover:block text-sm">
-                    {isThisPlaying ? <Pause className="w-4 h-4 fill-white mx-auto" /> : <Play className="w-4 h-4 fill-white mx-auto" />}
+                  <button className="w-4 hidden group-hover:flex items-center justify-center text-white cursor-pointer">
+                    {isThisPlaying ? (
+                      <Pause className="w-4 h-4 fill-white" />
+                    ) : (
+                      <Play className="w-4 h-4 fill-white" />
+                    )}
                   </button>
 
-                  <div className="w-11 h-11 rounded overflow-hidden shrink-0 bg-[#242424] shadow-md">
-                    <img src={track.coverUrl} alt={track.title} className="w-full h-full object-cover" />
+                  <div className="w-10 h-10 rounded overflow-hidden shrink-0 shadow-md">
+                    <ImageWithFallback
+                      src={track.coverUrl}
+                      alt={track.title}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
 
-                  <div className="min-w-0">
-                    <p className={`font-bold text-sm truncate ${
-                      isThisCurrent ? 'text-spoot-neon' : 'text-white'
-                    }`}>
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-semibold text-sm truncate ${isThisCurrent ? 'text-spoot-neon' : 'text-white'}`}>
                       {track.title}
                     </p>
-                    <div className="flex items-center gap-1.5 text-xs text-[#b3b3b3]">
-                      <span className="px-1 rounded bg-white/10 text-[10px] font-bold text-[#b3b3b3]">E</span>
-                      <span className="truncate">{track.artistName}</span>
-                    </div>
+                    <p className="text-xs text-[#b3b3b3] truncate">
+                      {track.artistName}
+                    </p>
                   </div>
                 </div>
 
-                {/* Nombre d'écoutes officiel */}
-                <div className="hidden sm:block text-right text-xs font-mono text-[#b3b3b3] pr-8">
+                {/* Nombre d'écoutes */}
+                <div className="hidden md:block w-36 text-xs text-[#b3b3b3] text-right font-mono">
                   {formatPlays(track.playCount)}
                 </div>
 
-                {/* Durée et Favori */}
-                <div className="flex items-center gap-4 text-xs font-mono text-[#b3b3b3]">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFavorite(track.id);
-                    }}
-                    className={`opacity-0 group-hover:opacity-100 transition-opacity ${
-                      track.isFavorite ? 'opacity-100 text-spoot-neon' : 'hover:text-white'
-                    }`}
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${track.isFavorite ? 'fill-spoot-neon' : ''}`} />
-                  </button>
-                  <span>{formatDuration(track.durationMs)}</span>
-                </div>
+                {/* Bouton Favori */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleFavorite(track.id);
+                  }}
+                  className="px-4 text-[#b3b3b3] hover:text-white transition-colors cursor-pointer"
+                >
+                  <Heart className={`w-4 h-4 ${track.isFavorite ? 'fill-spoot-neon text-spoot-neon' : ''}`} />
+                </button>
+
+                {/* Durée */}
+                <span className="w-12 text-xs text-[#b3b3b3] text-right font-mono">
+                  {formatDuration(track.durationMs)}
+                </span>
               </div>
             );
           })}
         </div>
 
-        {/* Bouton "Afficher plus" (Screenshot 2) */}
+        {/* Bouton "Afficher plus" */}
         {topTracks.length > 5 && (
           <button
             onClick={() => setShowAllTracks(!showAllTracks)}
-            className="text-xs font-bold text-[#b3b3b3] hover:text-white hover:underline pt-2 block"
+            className="text-xs font-bold text-[#b3b3b3] hover:text-white hover:underline pt-2 block cursor-pointer"
           >
             {showAllTracks ? 'Afficher moins' : 'Afficher plus'}
           </button>
         )}
       </section>
 
-      {/* 4. Section "Sélection de l'artiste" (Screenshot 2) */}
-      {topTracks.length > 0 && (
-        <section className="px-8 pt-8 space-y-4">
-          <h2 className="text-2xl font-bold tracking-tight text-white">Sélection de l'artiste</h2>
+      {/* 4. Section "Discographie — Albums" (Filtrage Strict sans albums fantômes) */}
+      <section className="px-8 pt-8 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-white">Albums</h2>
+            <p className="text-xs text-[#b3b3b3] mt-0.5">Albums studio officiels certifiés</p>
+          </div>
+          <span className="text-xs font-bold text-[#b3b3b3]">
+            {cleanAlbums.length} {cleanAlbums.length > 1 ? 'albums' : 'album'}
+          </span>
+        </div>
 
+        {cleanAlbums.length === 0 ? (
+          <p className="text-xs text-white/40 italic py-4">Aucun album studio disponible</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+            {cleanAlbums.slice(0, 10).map((alb) => (
+              <div
+                key={alb.id}
+                onClick={() => openAlbum(alb.id)}
+                className="bg-[#181818] hover:bg-[#282828] p-3.5 rounded-xl cursor-pointer transition-all group flex flex-col shadow-md border border-white/5"
+              >
+                <div className="aspect-square w-full rounded-lg overflow-hidden bg-[#242424] mb-3 shadow-lg relative">
+                  <ImageWithFallback
+                    src={alb.coverUrl}
+                    alt={alb.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all">
+                    <div className="w-11 h-11 rounded-full bg-spoot-neon flex items-center justify-center text-black shadow-2xl hover:scale-105">
+                      <Play className="w-5 h-5 fill-black ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+
+                <h3 className="font-bold text-sm text-white truncate mb-1" title={alb.title}>
+                  {alb.title}
+                </h3>
+                <p className="text-xs text-[#b3b3b3] truncate">
+                  {alb.releaseYear} • Album
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 5. Section "Discographie — Singles & EP" */}
+      <section className="px-8 pt-8 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-white">Singles et EP</h2>
+            <p className="text-xs text-[#b3b3b3] mt-0.5">Sorties individuelles et extended plays</p>
+          </div>
+          <span className="text-xs font-bold text-[#b3b3b3]">
+            {cleanSingles.length} sorties
+          </span>
+        </div>
+
+        {cleanSingles.length === 0 ? (
+          <p className="text-xs text-white/40 italic py-4">Aucun single disponible</p>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+            {cleanSingles.slice(0, 10).map((alb) => (
+              <div
+                key={alb.id}
+                onClick={() => openAlbum(alb.id)}
+                className="bg-[#181818] hover:bg-[#282828] p-3.5 rounded-xl cursor-pointer transition-all group flex flex-col shadow-md border border-white/5"
+              >
+                <div className="aspect-square w-full rounded-lg overflow-hidden bg-[#242424] mb-3 shadow-lg relative">
+                  <ImageWithFallback
+                    src={alb.coverUrl}
+                    alt={alb.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all">
+                    <div className="w-11 h-11 rounded-full bg-spoot-neon flex items-center justify-center text-black shadow-2xl hover:scale-105">
+                      <Play className="w-5 h-5 fill-black ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+
+                <h3 className="font-bold text-sm text-white truncate mb-1" title={alb.title}>
+                  {alb.title}
+                </h3>
+                <p className="text-xs text-[#b3b3b3] truncate">
+                  {alb.releaseYear} • {alb.type === 'ep' ? 'EP' : 'Single'}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 6. Section Séparée & Pliable "Apparitions & Compilations" */}
+      {compilations.length > 0 && (
+        <section className="px-8 pt-8 space-y-4">
           <div
-            onClick={() => playTrack(topTracks[0], topTracks)}
-            className="bg-[#181818] hover:bg-[#242424] p-4 rounded-xl flex items-center gap-4 max-w-md cursor-pointer transition-colors shadow-lg group"
+            onClick={() => setIsCompilationsOpen(!isCompilationsOpen)}
+            className="flex items-center justify-between p-4 rounded-2xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 cursor-pointer transition-all group"
           >
-            <div className="w-20 h-20 rounded-lg overflow-hidden shrink-0 shadow-md">
-              <img src={topTracks[0].coverUrl} alt={topTracks[0].title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white/70 group-hover:text-white transition-colors">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold tracking-tight text-white group-hover:text-spoot-neon transition-colors">
+                  Apparitions & Compilations
+                </h2>
+                <p className="text-xs text-[#b3b3b3]">
+                  Featurings, compilations et participations ({compilations.length})
+                </p>
+              </div>
             </div>
 
-            <div className="min-w-0 space-y-1">
-              <div className="flex items-center gap-1.5 text-xs text-[#b3b3b3]">
-                <img src={effectiveArtist.avatarUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
-                <span className="truncate">« {topTracks[0].title} » est disponible 💙💙</span>
-              </div>
-              <p className="font-bold text-sm text-white truncate">{topTracks[0].title}</p>
-              <span className="text-xs text-[#727272] block">Single / Sortie Populaire</span>
+            <div className="flex items-center gap-2 text-xs font-bold text-white/60 group-hover:text-white">
+              <span>{isCompilationsOpen ? 'Masquer' : 'Afficher'}</span>
+              {isCompilationsOpen ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
             </div>
           </div>
+
+          {isCompilationsOpen && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5 pt-2 animate-in fade-in duration-200">
+              {compilations.map((alb) => (
+                <div
+                  key={alb.id}
+                  onClick={() => openAlbum(alb.id)}
+                  className="bg-[#181818] hover:bg-[#282828] p-3.5 rounded-xl cursor-pointer transition-all group flex flex-col shadow-md border border-white/5"
+                >
+                  <div className="aspect-square w-full rounded-lg overflow-hidden bg-[#242424] mb-3 shadow-lg relative">
+                    <ImageWithFallback
+                      src={alb.coverUrl}
+                      alt={alb.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                    <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all">
+                      <div className="w-11 h-11 rounded-full bg-spoot-neon flex items-center justify-center text-black shadow-2xl hover:scale-105">
+                        <Play className="w-5 h-5 fill-black ml-0.5" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <h3 className="font-bold text-sm text-white truncate mb-1" title={alb.title}>
+                    {alb.title}
+                  </h3>
+                  <p className="text-xs text-[#b3b3b3] truncate">
+                    {alb.releaseYear} • Compilation
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
-      {/* 5. Section "Discographie" (Albums, Singles, EP, Screenshot 2) */}
-      <section className="px-8 pt-8 space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold tracking-tight text-white">Discographie</h2>
-          <button className="text-xs font-bold text-[#b3b3b3] hover:text-white hover:underline">
-            Tout afficher
-          </button>
-        </div>
-
-        {/* Pilules de filtrage Discographie */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setDiscoTab('popular')}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-              discoTab === 'popular' ? 'bg-white text-black' : 'bg-[#242424] text-white hover:bg-[#2a2a2a]'
-            }`}
-          >
-            Sorties populaires
-          </button>
-          <button
-            onClick={() => setDiscoTab('albums')}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-              discoTab === 'albums' ? 'bg-white text-black' : 'bg-[#242424] text-white hover:bg-[#2a2a2a]'
-            }`}
-          >
-            Albums
-          </button>
-          <button
-            onClick={() => setDiscoTab('singles')}
-            className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-              discoTab === 'singles' ? 'bg-white text-black' : 'bg-[#242424] text-white hover:bg-[#2a2a2a]'
-            }`}
-          >
-            Singles et EP
-          </button>
-        </div>
-
-        {/* Grille de sorties */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
-          {filteredAlbums.slice(0, 10).map((alb) => (
-            <div
-              key={alb.id}
-              onClick={() => openAlbum(alb.id)}
-              className="bg-[#181818] hover:bg-[#282828] p-3.5 rounded-lg cursor-pointer transition-all group flex flex-col shadow-md"
-            >
-              <div className="aspect-square w-full rounded-md overflow-hidden bg-[#242424] mb-3 shadow-lg relative">
-                <img src={alb.coverUrl} alt={alb.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all">
-                  <div className="w-11 h-11 rounded-full bg-spoot-neon flex items-center justify-center text-black shadow-2xl hover:scale-105">
-                    <Play className="w-5 h-5 fill-black ml-0.5" />
-                  </div>
-                </div>
-              </div>
-
-              <h3 className="font-bold text-sm text-white truncate mb-1" title={alb.title}>
-                {alb.title}
-              </h3>
-              <p className="text-xs text-[#b3b3b3] truncate">
-                {alb.releaseYear} • {alb.type === 'album' ? 'Album' : 'Single/EP'}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* 6. Section "Artistes similaires" */}
+      {/* 7. Section "Artistes similaires" */}
       {relatedArtists.length > 0 && (
         <section className="px-8 pt-8 space-y-4">
           <h2 className="text-2xl font-bold tracking-tight text-white">Artistes similaires</h2>
@@ -407,10 +486,14 @@ export const ArtistView: React.FC = () => {
               <div
                 key={relArt.id}
                 onClick={() => openArtist(relArt.id)}
-                className="bg-[#181818] hover:bg-[#282828] p-4 rounded-xl cursor-pointer transition-all group flex flex-col items-center text-center shadow-md"
+                className="bg-[#181818] hover:bg-[#282828] p-4 rounded-xl cursor-pointer transition-all group flex flex-col items-center text-center shadow-md border border-white/5"
               >
                 <div className="w-32 h-32 rounded-full overflow-hidden mb-3 bg-[#242424] shadow-xl">
-                  <img src={relArt.avatarUrl} alt={relArt.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  <ImageWithFallback
+                    src={relArt.avatarUrl}
+                    alt={relArt.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  />
                 </div>
                 <h3 className="text-sm font-bold text-white truncate w-full">{relArt.name}</h3>
                 <span className="text-xs text-[#727272] mt-0.5">Artiste</span>
@@ -420,10 +503,12 @@ export const ArtistView: React.FC = () => {
         </section>
       )}
 
-      {/* 7. Section "Vault" : Archives & Titres non officiels (Leaks / Morceaux retirés) */}
+      {/* 8. Section "Vault" : Archives & Titres non officiels (Leaks / Morceaux retirés) */}
       <section className="px-4 sm:px-8 pb-28">
         <UnreleasedVault artistName={effectiveArtist.name} artistId={effectiveArtist.id} />
       </section>
     </div>
   );
 };
+
+export default ArtistView;

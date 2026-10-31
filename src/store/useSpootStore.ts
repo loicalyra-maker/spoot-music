@@ -17,6 +17,7 @@ import {
   INITIAL_TRACKS, INITIAL_ALBUMS, INITIAL_ARTISTS, INITIAL_PLAYLISTS, INITIAL_FRIENDS
 } from '../mock/catalog';
 import { audioCore } from '../audio/WebAudioEngine';
+import { streamResolver } from '../services/StreamResolverService';
 import { musicApi, RealPodcast } from '../services/musicApi';
 import { spotifyApi } from '../services/spotify_api';
 import { deezerService } from '../services/deezer_service';

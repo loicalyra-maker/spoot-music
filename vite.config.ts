@@ -26,10 +26,16 @@ function ytDlpStreamResolver(): Plugin {
           return;
         }
 
+        const JUNK_KEYWORDS = ['reaction', 'review', 'instrumental remake', 'type beat', 'cover', 'slowed', 'sped up', 'reverb', 'mashup', 'tiktok'];
+        const isJunk = (t: string) => {
+          const lower = (t || '').toLowerCase();
+          return JUNK_KEYWORDS.some(kw => lower.includes(kw));
+        };
+
         execFile(
           'python',
-          ['-m', 'yt_dlp', '--skip-download', '--dump-json', '--flat-playlist', `ytsearch8:${artist} unreleased leak`],
-          { timeout: 10000 },
+          ['-m', 'yt_dlp', '--skip-download', '--dump-json', '--flat-playlist', `ytsearch10:${artist} unreleased leak`],
+          { timeout: 12000 },
           (err, stdout) => {
             if (err || !stdout?.trim()) {
               // Fallback vers API YouTube (garantit le fonctionnement universel sans Python)
@@ -45,28 +51,31 @@ function ytDlpStreamResolver(): Plugin {
                 .then(data => {
                   const contents = data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents || [];
                   const results = contents
-                    .filter((item) => item.videoRenderer && item.videoRenderer.videoId)
-                    .slice(0, 8)
-                    .map((item, idx) => {
+                    .filter((item: any) => item.videoRenderer && item.videoRenderer.videoId)
+                    .map((item: any) => {
                       const v = item.videoRenderer;
+                      const title = v.title?.runs?.[0]?.text || '';
                       const durText = v.lengthText?.simpleText || '3:30';
                       const parts = durText.split(':').map(Number);
                       let sec = 210;
                       if (parts.length === 2) sec = parts[0] * 60 + parts[1];
                       else if (parts.length === 3) sec = parts[0] * 3600 + parts[1] * 60 + parts[2];
-                      return {
-                        id: v.videoId,
-                        youtubeId: v.videoId,
-                        title: v.title?.runs?.[0]?.text || `Inédit #${idx + 1}`,
-                        artistName: artist,
-                        durationFormatted: durText,
-                        durationMs: sec * 1000,
-                        url: `https://www.youtube.com/watch?v=${v.videoId}`,
-                        coverUrl: v.thumbnail?.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
-                        viewCount: 650000 - idx * 45000,
-                        uploader: v.ownerText?.runs?.[0]?.text || 'Vault Archive'
-                      };
-                    });
+                      return { v, title, durText, sec };
+                    })
+                    .filter(({ title, sec }: any) => !isJunk(title) && sec >= 90 && sec <= 360)
+                    .slice(0, 8)
+                    .map(({ v, title, durText, sec }: any, idx: number) => ({
+                      id: v.videoId,
+                      youtubeId: v.videoId,
+                      title: title || `Inédit #${idx + 1}`,
+                      artistName: artist,
+                      durationFormatted: durText,
+                      durationMs: sec * 1000,
+                      url: `https://www.youtube.com/watch?v=${v.videoId}`,
+                      coverUrl: v.thumbnail?.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${v.videoId}/hqdefault.jpg`,
+                      viewCount: 650000 - idx * 45000,
+                      uploader: v.ownerText?.runs?.[0]?.text || 'Vault Archive'
+                    }));
                   vaultCache.set(key, results);
                   res.setHeader('Content-Type', 'application/json');
                   res.end(JSON.stringify({ results }));
@@ -84,23 +93,30 @@ function ytDlpStreamResolver(): Plugin {
                 try { return JSON.parse(l); } catch { return null; }
               }).filter(Boolean);
 
-              const results = entries.map((e, idx) => {
-                const sec = Math.floor(e.duration || 210);
-                const m = Math.floor(sec / 60);
-                const s = sec % 60;
-                return {
-                  id: e.id || `vault-${idx}`,
-                  youtubeId: e.id,
-                  title: e.title || `Inédit #${idx + 1}`,
-                  artistName: artist,
-                  durationFormatted: `${m}:${s < 10 ? '0' : ''}${s}`,
-                  durationMs: sec * 1000,
-                  url: e.url || (e.id ? `https://www.youtube.com/watch?v=${e.id}` : ''),
-                  coverUrl: e.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${e.id}/hqdefault.jpg`,
-                  viewCount: e.view_count || (780000 - idx * 45000),
-                  uploader: e.uploader || e.channel || 'Vault Archive'
-                };
-              });
+              const results = entries
+                .filter((e: any) => {
+                  const title = e.title || '';
+                  const sec = Math.floor(e.duration || 210);
+                  return !isJunk(title) && sec >= 90 && sec <= 360;
+                })
+                .slice(0, 8)
+                .map((e: any, idx: number) => {
+                  const sec = Math.floor(e.duration || 210);
+                  const m = Math.floor(sec / 60);
+                  const s = sec % 60;
+                  return {
+                    id: e.id || `vault-${idx}`,
+                    youtubeId: e.id,
+                    title: e.title || `Inédit #${idx + 1}`,
+                    artistName: artist,
+                    durationFormatted: `${m}:${s < 10 ? '0' : ''}${s}`,
+                    durationMs: sec * 1000,
+                    url: e.url || (e.id ? `https://www.youtube.com/watch?v=${e.id}` : ''),
+                    coverUrl: e.thumbnails?.[0]?.url || `https://i.ytimg.com/vi/${e.id}/hqdefault.jpg`,
+                    viewCount: e.view_count || (780000 - idx * 45000),
+                    uploader: e.uploader || e.channel || 'Vault Archive'
+                  };
+                });
 
               vaultCache.set(key, results);
               res.setHeader('Content-Type', 'application/json');
@@ -131,11 +147,13 @@ function ytDlpStreamResolver(): Plugin {
           return;
         }
 
-        const ytTarget = id ? `https://www.youtube.com/watch?v=${id}` : `ytsearch1:${q} audio`;
+        const ytTarget = id 
+          ? `https://www.youtube.com/watch?v=${id}` 
+          : `ytsearch1:${(q || '').includes('Official Audio') ? q : `${q} Official Audio`}`;
 
         execFile(
           'python',
-          ['-m', 'yt_dlp', '-g', '-f', 'bestaudio', ytTarget],
+          ['-m', 'yt_dlp', '-g', '-f', 'bestaudio[ext=m4a]/bestaudio/best', '--no-playlist', ytTarget],
           { timeout: 15000 },
           (err, stdout) => {
             if (err || !stdout?.trim()) {

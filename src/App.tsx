@@ -11,6 +11,7 @@ import { SettingsModal } from './components/Views/SettingsModal';
 import { SpootConnectModal } from './components/Social/SpootConnectModal';
 import { ProfileEditModal } from './components/Views/ProfileEditModal';
 import { ListeningHistoryDrawer } from './components/Views/ListeningHistoryDrawer';
+import { HomeCustomizerModal } from './components/Views/HomeCustomizerModal';
 import { HomeView } from './components/Views/HomeView';
 import { PlaylistView } from './components/Views/PlaylistView';
 import { ArtistView } from './components/Views/ArtistView';
@@ -80,6 +81,7 @@ export const App: React.FC = () => {
       <SpootConnectModal />
       <ProfileEditModal />
       <ListeningHistoryDrawer />
+      <HomeCustomizerModal />
 
       {/* Snackbar d'annulation (Undo Notification) avec auto-dismiss et fermeture rapide */}
       {undoNotification && (

@@ -1,9 +1,10 @@
 // Spoot Music — Real-Time Stream & Web Audio DSP Engine
 // Connecte l'élément audio natif au graphe DSP Web Audio (Égaliseur 10 bandes, Limiteur, Karaoké)
-// Supporte la navigation fluide (seeking sans coupure), boucle transparente de flux, et horloge ProMotion
+// Résolution de flux audio intégral (yt-dlp Direct / ProMotion 120 FPS / Zéro coupure à 30 secondes)
 
 import { Track } from '../types';
 import { musicApi } from '../services/musicApi';
+import { streamResolver } from '../services/StreamResolverService';
 
 export const EQ_FREQUENCIES = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
@@ -26,7 +27,7 @@ export class WebAudioEngine {
   private onTrackEndedCallback: (() => void) | null = null;
   private onPositionUpdateCallback: ((posMs: number, durMs: number) => void) | null = null;
 
-  // Horloge temporelle virtuelle pour synchronisation continue sans coupure
+  // Horloge temporelle avec synchronisation ProMotion
   private virtualPositionMs: number = 0;
   private lastTickTime: number = 0;
   private tickerTimer: any = null;
@@ -36,7 +37,6 @@ export class WebAudioEngine {
     if (typeof window !== 'undefined') {
       this.audioEl = new Audio();
       this.audioEl.crossOrigin = 'anonymous';
-      // Optimisation données mobiles (iPhone 16 Pro Max) : ne charge que les métadonnées au repos
       this.audioEl.preload = 'metadata';
 
       this.audioEl.addEventListener('loadedmetadata', () => {
@@ -57,40 +57,35 @@ export class WebAudioEngine {
         }
       });
 
+      // Éradication du bug des 30 secondes :
+      // La lecture se poursuit jusqu'à la fin complète du titre sans interruption,
+      // et à la fin naturelle du titre, passage direct au titre suivant dans la file.
       this.audioEl.addEventListener('ended', () => {
-        // Ne jamais changer de piste suite à un dépassement accidentel de seek
         if (this.isSeeking) return;
 
-        const trackDurMs = this.currentTrack?.durationMs || 180000;
-        // Si le morceau dans son ensemble n'est pas encore terminé (ex: preview de 30s)
-        if (this.virtualPositionMs < trackDurMs - 1500) {
-          // Bouclage continu sans aucune coupure
-          if (this.audioEl && !this.isPaused) {
-            this.audioEl.currentTime = 0;
-            this.audioEl.play().catch(e => console.warn('Stream loop resume error:', e));
-          }
-        } else {
-          // Fin naturelle du morceau complet
-          this.stopTicker();
-          if (this.onTrackEndedCallback) {
-            this.onTrackEndedCallback();
-          }
+        this.stopTicker();
+        if (this.onTrackEndedCallback) {
+          this.onTrackEndedCallback();
         }
       });
 
-      // Récupération automatique et instantanée en cas d'erreur de lecture (ex: flux expiré)
+      // Récupération automatique et instantanée en cas d'erreur de lecture
       this.audioEl.addEventListener('error', async () => {
         if (!this.currentTrack || !this.audioEl) return;
-        console.warn('Audio playback error on stream, attempting immediate cloud recovery...');
+        console.warn('[WebAudioEngine] Erreur de lecture sur flux, tentative de récupération automatique...');
         try {
-          const freshUrl = await musicApi.resolveFullAudioStream(this.currentTrack.artistName, this.currentTrack.title);
+          const freshUrl = await streamResolver.resolveFullAudio(
+            this.currentTrack.artistName,
+            this.currentTrack.title,
+            (this.currentTrack as any).youtubeId
+          );
           if (freshUrl && this.audioEl && this.audioEl.src !== freshUrl) {
             this.currentTrack.streamUrl = freshUrl;
             this.audioEl.src = freshUrl;
             await this.audioEl.play();
           }
         } catch (recoveryErr) {
-          console.warn('Auto-recovery playback error:', recoveryErr);
+          console.warn('[WebAudioEngine] Récupération de secours échouée:', recoveryErr);
         }
       });
     }
@@ -125,12 +120,17 @@ export class WebAudioEngine {
   private tick() {
     if (this.isPaused || !this.currentTrack || this.isSeeking) return;
 
-    const now = performance.now();
-    const deltaMs = now - this.lastTickTime;
-    this.lastTickTime = now;
-
     const trackDurMs = this.currentTrack.durationMs || 180000;
-    this.virtualPositionMs = Math.min(trackDurMs, this.virtualPositionMs + deltaMs);
+
+    // Si l'élément audio HTML5 lit activement, synchronisation 1:1 exacte
+    if (this.audioEl && !isNaN(this.audioEl.currentTime) && this.audioEl.currentTime > 0) {
+      this.virtualPositionMs = Math.min(trackDurMs, this.audioEl.currentTime * 1000);
+    } else {
+      const now = performance.now();
+      const deltaMs = now - this.lastTickTime;
+      this.lastTickTime = now;
+      this.virtualPositionMs = Math.min(trackDurMs, this.virtualPositionMs + deltaMs);
+    }
 
     if (this.onPositionUpdateCallback) {
       this.onPositionUpdateCallback(this.virtualPositionMs, trackDurMs);
@@ -207,7 +207,7 @@ export class WebAudioEngine {
   }
 
   /**
-   * Lance la lecture d'une vraie musique avec résolution du flux
+   * Lance la lecture d'une vraie musique avec résolution du flux complet (yt-dlp)
    */
   public async playTrack(track: Track, startPositionMs: number = 0) {
     if (typeof window === 'undefined' || !this.audioEl) return;
@@ -219,12 +219,19 @@ export class WebAudioEngine {
     this.virtualPositionMs = startPositionMs;
     this.startTicker();
 
-    // Détermine le flux audio réel (CDN iTunes / Deezer / YouTube Music)
+    // Résolution audio intégrale obligatoire (élimine les previews tronqués à 30s)
     let streamUrl = track.streamUrl;
-    if (!streamUrl || (!streamUrl.startsWith('http') && !streamUrl.startsWith('/api/stream-audio'))) {
-      streamUrl = await musicApi.resolveFullAudioStream(track.artistName, track.title, track.streamUrl);
-      if (streamUrl) {
+    if (!streamUrl || streamResolver.is30sPreview(streamUrl)) {
+      try {
+        streamUrl = await streamResolver.resolveFullAudio(
+          track.artistName,
+          track.title,
+          (track as any).youtubeId
+        );
         track.streamUrl = streamUrl;
+      } catch {
+        streamUrl = await musicApi.resolveFullAudioStream(track.artistName, track.title, track.streamUrl);
+        if (streamUrl) track.streamUrl = streamUrl;
       }
     }
 
@@ -234,7 +241,6 @@ export class WebAudioEngine {
     }
 
     if (streamUrl && this.audioEl) {
-      // Réinitialisation absolue du flux à zéro au démarrage
       this.audioEl.pause();
       try {
         this.audioEl.currentTime = 0;
@@ -272,6 +278,9 @@ export class WebAudioEngine {
     this.audioEl.play().catch(e => console.warn('Resume error:', e));
   }
 
+  /**
+   * Navigation temporelle directe 1:1 sans approximation
+   */
   public seek(positionMs: number) {
     if (!this.audioEl || !this.currentTrack) return;
     this.isSeeking = true;
@@ -280,29 +289,20 @@ export class WebAudioEngine {
     this.virtualPositionMs = clampedPos;
     this.lastTickTime = performance.now();
 
+    const targetAudioSec = clampedPos / 1000.0;
     const streamDur = this.audioEl.duration;
-    if (!isNaN(streamDur) && streamDur > 0) {
-      let targetAudioSec: number;
-      // Si le flux audio physique est complet
-      if (streamDur >= 60 || streamDur >= (trackDurMs / 1000) * 0.8) {
-        targetAudioSec = Math.max(0, Math.min(streamDur - 0.5, clampedPos / 1000.0));
-      } else {
-        // Si le flux audio physique est un extrait preview (ex: 30s)
-        // Projection proportionnelle fluide évitant toujours la fin du buffer
-        const ratio = trackDurMs > 0 ? (clampedPos / trackDurMs) : 0;
-        targetAudioSec = Math.max(0, Math.min(streamDur - 0.5, ratio * (streamDur - 0.5)));
-      }
+    const safeTargetSec = (!isNaN(streamDur) && streamDur > 0)
+      ? Math.max(0, Math.min(streamDur - 0.2, targetAudioSec))
+      : targetAudioSec;
 
-      if (this.audioEl.readyState >= 1) {
-        try {
-          this.audioEl.currentTime = targetAudioSec;
-        } catch {}
-      } else {
-        this.pendingSeekSec = targetAudioSec;
-      }
+    if (this.audioEl.readyState >= 1) {
+      try {
+        this.audioEl.currentTime = safeTargetSec;
+      } catch {}
+    } else {
+      this.pendingSeekSec = safeTargetSec;
     }
 
-    // Si le lecteur est en mode lecture, on assure la continuité sonore sans coupure
     if (!this.isPaused) {
       this.initDspChainIfNeeded();
       this.audioEl.play().catch(e => console.warn('Seek play resume error:', e));
@@ -353,12 +353,10 @@ export class WebAudioEngine {
   }
 
   public setCrossfadeSeconds(secs: number) {
-    // Stocké pour les transitions entre morceaux
     (this as any).crossfadeSecs = Math.max(0, Math.min(12, secs));
   }
 
   public setAudioQuality(quality: 'auto' | 'normal' | 'high' | 'very_high' | 'hi_res') {
-    // Configuré pour les prochains streams demandés
     (this as any).audioQualityMode = quality;
   }
 
