@@ -1,5 +1,6 @@
 // Spoot Music — Real-Time Stream & Web Audio DSP Engine
 // Connecte l'élément audio natif au graphe DSP Web Audio (Égaliseur 10 bandes, Limiteur, Karaoké)
+// Supporte la navigation fluide (seeking sans coupure), boucle transparente de flux, et horloge ProMotion
 
 import { Track } from '../types';
 import { musicApi } from '../services/musicApi';
@@ -23,6 +24,13 @@ export class WebAudioEngine {
   private karaokeAttenuation: number = 0; // 0.0 (normal) à 1.0 (voix coupée)
   private isPaused: boolean = true;
   private onTrackEndedCallback: (() => void) | null = null;
+  private onPositionUpdateCallback: ((posMs: number, durMs: number) => void) | null = null;
+
+  // Horloge temporelle virtuelle pour synchronisation continue sans coupure
+  private virtualPositionMs: number = 0;
+  private lastTickTime: number = 0;
+  private tickerTimer: any = null;
+  private pendingSeekSec: number | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -31,13 +39,40 @@ export class WebAudioEngine {
       // Optimisation données mobiles (iPhone 16 Pro Max) : ne charge que les métadonnées au repos
       this.audioEl.preload = 'metadata';
 
+      this.audioEl.addEventListener('loadedmetadata', () => {
+        if (this.pendingSeekSec !== null && this.audioEl) {
+          try {
+            this.audioEl.currentTime = this.pendingSeekSec;
+            this.pendingSeekSec = null;
+          } catch {}
+        }
+      });
+
+      this.audioEl.addEventListener('canplay', () => {
+        if (this.pendingSeekSec !== null && this.audioEl) {
+          try {
+            this.audioEl.currentTime = this.pendingSeekSec;
+            this.pendingSeekSec = null;
+          } catch {}
+        }
+      });
+
       this.audioEl.addEventListener('ended', () => {
         // Ne jamais changer de piste suite à un dépassement accidentel de seek
         if (this.isSeeking) return;
-        if (this.onTrackEndedCallback && this.audioEl) {
-          // Vérifie qu'on est bien arrivé à la fin naturelle du titre
-          const dur = this.audioEl.duration;
-          if (!isNaN(dur) && dur > 0 && Math.abs(this.audioEl.currentTime - dur) < 1.0) {
+
+        const trackDurMs = this.currentTrack?.durationMs || 180000;
+        // Si le morceau dans son ensemble n'est pas encore terminé (ex: preview de 30s)
+        if (this.virtualPositionMs < trackDurMs - 1500) {
+          // Bouclage continu sans aucune coupure
+          if (this.audioEl && !this.isPaused) {
+            this.audioEl.currentTime = 0;
+            this.audioEl.play().catch(e => console.warn('Stream loop resume error:', e));
+          }
+        } else {
+          // Fin naturelle du morceau complet
+          this.stopTicker();
+          if (this.onTrackEndedCallback) {
             this.onTrackEndedCallback();
           }
         }
@@ -63,6 +98,50 @@ export class WebAudioEngine {
 
   public setOnTrackEnded(callback: () => void) {
     this.onTrackEndedCallback = callback;
+  }
+
+  public setOnPositionUpdate(callback: (posMs: number, durMs: number) => void) {
+    this.onPositionUpdateCallback = callback;
+    if (this.currentTrack) {
+      callback(this.virtualPositionMs, this.currentTrack.durationMs || 180000);
+    }
+  }
+
+  private startTicker() {
+    this.stopTicker();
+    this.lastTickTime = performance.now();
+    this.tickerTimer = setInterval(() => {
+      this.tick();
+    }, 100);
+  }
+
+  private stopTicker() {
+    if (this.tickerTimer !== null) {
+      clearInterval(this.tickerTimer);
+      this.tickerTimer = null;
+    }
+  }
+
+  private tick() {
+    if (this.isPaused || !this.currentTrack || this.isSeeking) return;
+
+    const now = performance.now();
+    const deltaMs = now - this.lastTickTime;
+    this.lastTickTime = now;
+
+    const trackDurMs = this.currentTrack.durationMs || 180000;
+    this.virtualPositionMs = Math.min(trackDurMs, this.virtualPositionMs + deltaMs);
+
+    if (this.onPositionUpdateCallback) {
+      this.onPositionUpdateCallback(this.virtualPositionMs, trackDurMs);
+    }
+
+    if (this.virtualPositionMs >= trackDurMs) {
+      this.stopTicker();
+      if (this.onTrackEndedCallback) {
+        this.onTrackEndedCallback();
+      }
+    }
   }
 
   private initDspChainIfNeeded() {
@@ -137,6 +216,8 @@ export class WebAudioEngine {
     this.currentTrack = track;
     this.isPaused = false;
     this.isSeeking = false;
+    this.virtualPositionMs = startPositionMs;
+    this.startTicker();
 
     // Détermine le flux audio réel (CDN iTunes / Deezer / YouTube Music)
     let streamUrl = track.streamUrl;
@@ -154,16 +235,22 @@ export class WebAudioEngine {
 
     if (streamUrl) {
       this.audioEl.src = streamUrl;
-      // Démarrage garanti à l'offset zéro (ou startPositionMs spécifié)
+      const trackDurMs = track.durationMs || 180000;
+      
+      // Calcul du point de démarrage dans le flux
       const targetStartSec = Math.max(0, startPositionMs / 1000.0);
-      this.audioEl.currentTime = targetStartSec;
+      if (this.audioEl.duration && !isNaN(this.audioEl.duration) && this.audioEl.duration > 0) {
+        const streamDur = this.audioEl.duration;
+        const mappedSec = streamDur >= 60
+          ? Math.min(streamDur - 0.5, targetStartSec)
+          : Math.min(streamDur - 0.5, (startPositionMs / trackDurMs) * (streamDur - 0.5));
+        this.audioEl.currentTime = Math.max(0, mappedSec);
+      } else {
+        this.pendingSeekSec = targetStartSec;
+      }
 
       try {
         await this.audioEl.play();
-        // Réaffirmation du démarrage à zéro une fois la lecture amorcée
-        if (targetStartSec === 0 && this.audioEl.currentTime > 1.0 && this.audioEl.currentTime < this.audioEl.duration - 2) {
-          this.audioEl.currentTime = 0;
-        }
       } catch (err) {
         console.warn('Audio play request interrupted or requires user gesture:', err);
       }
@@ -172,33 +259,62 @@ export class WebAudioEngine {
 
   public pause() {
     if (!this.audioEl) return;
-    this.audioEl.pause();
     this.isPaused = true;
+    this.stopTicker();
+    this.audioEl.pause();
   }
 
   public resume() {
     if (!this.audioEl) return;
-    this.initDspChainIfNeeded();
-    this.audioEl.play().catch(e => console.warn('Resume error:', e));
     this.isPaused = false;
+    this.initDspChainIfNeeded();
+    this.startTicker();
+    this.audioEl.play().catch(e => console.warn('Resume error:', e));
   }
 
   public seek(positionMs: number) {
-    if (!this.audioEl) return;
+    if (!this.audioEl || !this.currentTrack) return;
     this.isSeeking = true;
-    const targetSec = Math.max(0, positionMs / 1000.0);
-    const dur = this.audioEl.duration;
+    const trackDurMs = this.currentTrack.durationMs || 180000;
+    const clampedPos = Math.max(0, Math.min(trackDurMs, positionMs));
+    this.virtualPositionMs = clampedPos;
+    this.lastTickTime = performance.now();
 
-    if (!isNaN(dur) && dur > 0) {
-      // Clamper en évitant d'atteindre la toute fin pour ne pas déclencher 'ended'
-      this.audioEl.currentTime = Math.min(Math.max(0, dur - 0.25), targetSec);
-    } else {
-      this.audioEl.currentTime = targetSec;
+    const streamDur = this.audioEl.duration;
+    if (!isNaN(streamDur) && streamDur > 0) {
+      let targetAudioSec: number;
+      // Si le flux audio physique est complet
+      if (streamDur >= 60 || streamDur >= (trackDurMs / 1000) * 0.8) {
+        targetAudioSec = Math.max(0, Math.min(streamDur - 0.5, clampedPos / 1000.0));
+      } else {
+        // Si le flux audio physique est un extrait preview (ex: 30s)
+        // Projection proportionnelle fluide évitant toujours la fin du buffer
+        const ratio = trackDurMs > 0 ? (clampedPos / trackDurMs) : 0;
+        targetAudioSec = Math.max(0, Math.min(streamDur - 0.5, ratio * (streamDur - 0.5)));
+      }
+
+      if (this.audioEl.readyState >= 1) {
+        try {
+          this.audioEl.currentTime = targetAudioSec;
+        } catch {}
+      } else {
+        this.pendingSeekSec = targetAudioSec;
+      }
+    }
+
+    // Si le lecteur est en mode lecture, on assure la continuité sonore sans coupure
+    if (!this.isPaused) {
+      this.initDspChainIfNeeded();
+      this.audioEl.play().catch(e => console.warn('Seek play resume error:', e));
+    }
+
+    if (this.onPositionUpdateCallback) {
+      this.onPositionUpdateCallback(this.virtualPositionMs, trackDurMs);
     }
 
     setTimeout(() => {
       this.isSeeking = false;
-    }, 400);
+    }, 250);
   }
 
   public setVolume(volume: number) {
@@ -247,14 +363,10 @@ export class WebAudioEngine {
   }
 
   public getPositionMs(): number {
-    if (!this.audioEl) return 0;
-    return Math.floor(this.audioEl.currentTime * 1000.0);
+    return Math.floor(this.virtualPositionMs);
   }
 
   public getDurationMs(): number {
-    if (this.audioEl && !isNaN(this.audioEl.duration) && this.audioEl.duration > 0) {
-      return Math.floor(this.audioEl.duration * 1000.0);
-    }
     return this.currentTrack?.durationMs || 180000;
   }
 
@@ -265,6 +377,7 @@ export class WebAudioEngine {
   }
 
   public destroy() {
+    this.stopTicker();
     if (this.audioEl) {
       this.audioEl.pause();
       this.audioEl.src = '';

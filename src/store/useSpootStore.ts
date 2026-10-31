@@ -223,6 +223,11 @@ export const useSpootStore = create<SpootState>((set, get) => {
     get().nextTrack();
   });
 
+  // Synchronisation temporelle ProMotion 120Hz haute précision
+  audioCore.setOnPositionUpdate((posMs, durMs) => {
+    set({ positionMs: posMs, durationMs: durMs });
+  });
+
   return {
     // Navigation
     activeView: 'home',

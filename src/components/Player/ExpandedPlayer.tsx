@@ -105,6 +105,27 @@ export const ExpandedPlayer: React.FC = () => {
     seek(targetMs);
   };
 
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    setIsDragging(true);
+    const targetMs = handleSeekFromClientX(e.clientX);
+    setDragPositionMs(targetMs);
+
+    const onMouseMove = (ev: MouseEvent) => {
+      setDragPositionMs(handleSeekFromClientX(ev.clientX));
+    };
+
+    const onMouseUp = (ev: MouseEvent) => {
+      const finalMs = handleSeekFromClientX(ev.clientX);
+      seek(finalMs);
+      setIsDragging(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     setIsDragging(true);
     const touch = e.touches[0];
@@ -318,6 +339,7 @@ export const ExpandedPlayer: React.FC = () => {
         <div
           ref={timelineRef}
           onClick={handleTimelineClick}
+          onMouseDown={handleMouseDown}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
