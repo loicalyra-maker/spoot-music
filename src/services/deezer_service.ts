@@ -205,59 +205,62 @@ export class DeezerService {
     const artists: Artist[] = [];
     const albums: Album[] = [];
 
-    try {
-      const [tracksRes, artistsRes, albumsRes] = await Promise.allSettled([
-        fetch(`/api/deezer/search?q=${encoded}&limit=${limit}`, { signal: AbortSignal.timeout(2500) }),
-        fetch(`/api/deezer/search/artist?q=${encoded}&limit=8`, { signal: AbortSignal.timeout(2500) }),
-        fetch(`/api/deezer/search/album?q=${encoded}&limit=12`, { signal: AbortSignal.timeout(2500) }),
-      ]);
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocal) {
+      try {
+        const [tracksRes, artistsRes, albumsRes] = await Promise.allSettled([
+          fetch(`/api/deezer/search?q=${encoded}&limit=${limit}`, { signal: AbortSignal.timeout(2500) }),
+          fetch(`/api/deezer/search/artist?q=${encoded}&limit=8`, { signal: AbortSignal.timeout(2500) }),
+          fetch(`/api/deezer/search/album?q=${encoded}&limit=12`, { signal: AbortSignal.timeout(2500) }),
+        ]);
 
-      if (tracksRes.status === 'fulfilled' && tracksRes.value.ok) {
-        const data = await tracksRes.value.json();
-        if (data.data && Array.isArray(data.data)) {
-          tracks.push(...data.data.map((t: any) => this.mapDeezerTrack(t)));
+        if (tracksRes.status === 'fulfilled' && tracksRes.value.ok) {
+          const data = await tracksRes.value.json();
+          if (data.data && Array.isArray(data.data)) {
+            tracks.push(...data.data.map((t: any) => this.mapDeezerTrack(t)));
+          }
         }
-      }
 
-      if (artistsRes.status === 'fulfilled' && artistsRes.value.ok) {
-        const data = await artistsRes.value.json();
-        if (data.data && Array.isArray(data.data)) {
-          artists.push(
-            ...data.data.map((a: any) => ({
-              id: String(a.id),
-              name: a.name,
-              avatarUrl: a.picture_xl || a.picture_big || a.picture_medium,
-              monthlyListeners: (a.nb_fan || 50000) * 4,
-              bio: `Artiste vérifié officiel sur Spoot Music. Discographie complète disponible.`,
-              isFollowed: false,
-              hasNewRelease: true,
-              albums: [],
-            }))
-          );
+        if (artistsRes.status === 'fulfilled' && artistsRes.value.ok) {
+          const data = await artistsRes.value.json();
+          if (data.data && Array.isArray(data.data)) {
+            artists.push(
+              ...data.data.map((a: any) => ({
+                id: String(a.id),
+                name: a.name,
+                avatarUrl: a.picture_xl || a.picture_big || a.picture_medium,
+                monthlyListeners: (a.nb_fan || 50000) * 4,
+                bio: `Artiste vérifié officiel sur Spoot Music. Discographie complète disponible.`,
+                isFollowed: false,
+                hasNewRelease: true,
+                albums: [],
+              }))
+            );
+          }
         }
-      }
 
-      if (albumsRes.status === 'fulfilled' && albumsRes.value.ok) {
-        const data = await albumsRes.value.json();
-        if (data.data && Array.isArray(data.data)) {
-          albums.push(
-            ...data.data.map((alb: any) => ({
-              id: String(alb.id),
-              title: alb.title,
-              artistId: String(alb.artist?.id || '0'),
-              artistName: alb.artist?.name || 'Artiste',
-              coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium,
-              releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
-              type: (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album') as any,
-              trackCount: alb.nb_tracks || 12,
-              totalDurationMs: (alb.nb_tracks || 12) * 210000,
-              tracks: [],
-            }))
-          );
+        if (albumsRes.status === 'fulfilled' && albumsRes.value.ok) {
+          const data = await albumsRes.value.json();
+          if (data.data && Array.isArray(data.data)) {
+            albums.push(
+              ...data.data.map((alb: any) => ({
+                id: String(alb.id),
+                title: alb.title,
+                artistId: String(alb.artist?.id || '0'),
+                artistName: alb.artist?.name || 'Artiste',
+                coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium,
+                releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
+                type: (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album') as any,
+                trackCount: alb.nb_tracks || 12,
+                totalDurationMs: (alb.nb_tracks || 12) * 210000,
+                tracks: [],
+              }))
+            );
+          }
         }
+      } catch (err) {
+        console.warn('Deezer direct proxy failed, falling back to iTunes API:', err);
       }
-    } catch (err) {
-      console.warn('Deezer direct proxy failed, falling back to iTunes API:', err);
     }
 
     // Fallback 100% Autonome sans backend : iTunes Search API (CORS mondial)
@@ -326,37 +329,40 @@ export class DeezerService {
    * Tendances du Top 50 mondial / France (Chart)
    */
   public async getChart(): Promise<{ tracks: Track[]; albums: Album[]; artists: Artist[] }> {
-    try {
-      const res = await fetch('/api/deezer/chart/0');
-      if (res.ok) {
-        const data = await res.json();
-        const tracks = (data.tracks?.data || []).map((t: any) => this.mapDeezerTrack(t));
-        const albums = (data.albums?.data || []).map((alb: any) => ({
-          id: String(alb.id),
-          title: alb.title,
-          artistId: String(alb.artist?.id || '0'),
-          artistName: alb.artist?.name || 'Artiste',
-          coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium,
-          releaseYear: new Date().getFullYear(),
-          type: 'album' as const,
-          trackCount: 12,
-          totalDurationMs: 2400000,
-          tracks: [],
-        }));
-        const artists = (data.artists?.data || []).map((a: any) => ({
-          id: String(a.id),
-          name: a.name,
-          avatarUrl: a.picture_xl || a.picture_big || a.picture_medium,
-          monthlyListeners: (a.nb_fan || 100000) * 4,
-          bio: `Artiste officiel Spoot Top Chart`,
-          isFollowed: false,
-          hasNewRelease: false,
-          albums: [],
-        }));
-        return { tracks, albums, artists };
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocal) {
+      try {
+        const res = await fetch('/api/deezer/chart/0');
+        if (res.ok) {
+          const data = await res.json();
+          const tracks = (data.tracks?.data || []).map((t: any) => this.mapDeezerTrack(t));
+          const albums = (data.albums?.data || []).map((alb: any) => ({
+            id: String(alb.id),
+            title: alb.title,
+            artistId: String(alb.artist?.id || '0'),
+            artistName: alb.artist?.name || 'Artiste',
+            coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium,
+            releaseYear: new Date().getFullYear(),
+            type: 'album' as const,
+            trackCount: 12,
+            totalDurationMs: 2400000,
+            tracks: [],
+          }));
+          const artists = (data.artists?.data || []).map((a: any) => ({
+            id: String(a.id),
+            name: a.name,
+            avatarUrl: a.picture_xl || a.picture_big || a.picture_medium,
+            monthlyListeners: (a.nb_fan || 100000) * 4,
+            bio: `Artiste officiel Spoot Top Chart`,
+            isFollowed: false,
+            hasNewRelease: false,
+            albums: [],
+          }));
+          return { tracks, albums, artists };
+        }
+      } catch (err) {
+        console.warn('Deezer chart fetch error:', err);
       }
-    } catch (err) {
-      console.warn('Deezer chart fetch error:', err);
     }
     return { tracks: [], albums: [], artists: [] };
   }
@@ -365,16 +371,19 @@ export class DeezerService {
    * Top 50 morceaux les plus streamés (Chart Mondial / France)
    */
   public async getTop50Tracks(): Promise<Track[]> {
-    try {
-      const res = await fetch('/api/deezer/chart/0/tracks?limit=50', { signal: AbortSignal.timeout(2000) });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.data && Array.isArray(data.data)) {
-          return data.data.map((t: any) => this.mapDeezerTrack(t));
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocal) {
+      try {
+        const res = await fetch('/api/deezer/chart/0/tracks?limit=50', { signal: AbortSignal.timeout(2000) });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.data && Array.isArray(data.data)) {
+            return data.data.map((t: any) => this.mapDeezerTrack(t));
+          }
         }
+      } catch (err) {
+        console.warn('Deezer top 50 tracks fetch error, falling back to iTunes:', err);
       }
-    } catch (err) {
-      console.warn('Deezer top 50 tracks fetch error, falling back to iTunes:', err);
     }
 
     try {
@@ -429,22 +438,25 @@ export class DeezerService {
    * Top Podcasts Tendances (Chart Podcasts)
    */
   public async getTopPodcasts(): Promise<DeezerPodcast[]> {
-    try {
-      const res = await fetch('/api/deezer/chart/0/podcasts');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.data && Array.isArray(data.data)) {
-          return data.data.map((p: any) => ({
-            id: String(p.id),
-            title: p.title,
-            description: p.description,
-            coverUrl: p.picture_xl || p.picture_big || p.picture_medium,
-            fans: p.fans || 50000,
-          }));
+    const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    if (isLocal) {
+      try {
+        const res = await fetch('/api/deezer/chart/0/podcasts');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.data && Array.isArray(data.data)) {
+            return data.data.map((p: any) => ({
+              id: String(p.id),
+              title: p.title,
+              description: p.description,
+              coverUrl: p.picture_xl || p.picture_big || p.picture_medium,
+              fans: p.fans || 50000,
+            }));
+          }
         }
+      } catch (err) {
+        console.warn('Deezer podcasts chart fetch error:', err);
       }
-    } catch (err) {
-      console.warn('Deezer podcasts chart fetch error:', err);
     }
     // Fallback avec de vrais podcasts français
     return [

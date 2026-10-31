@@ -1332,7 +1332,7 @@ export const HomeView: React.FC = () => {
                     className={`group relative h-44 ${cornerRadius} overflow-hidden cursor-pointer shadow-xl transition-all duration-300 flex flex-col justify-end p-5 liquid-glass-card`}
                   >
                     <img
-                      src="https://images.unsplash.com/photo-1528164344705-475426879c0d?w=800&q=85"
+                      src="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&q=85"
                       alt="Discover Weekly Japan Nature Cover"
                       className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 pointer-events-none opacity-65"
                       onError={(e) => {
