@@ -421,7 +421,7 @@ export const ArtistView: React.FC = () => {
       )}
 
       {/* 7. Section "Vault" : Archives & Titres non officiels (Leaks / Morceaux retirés) */}
-      <section className="px-8 pb-12">
+      <section className="px-4 sm:px-8 pb-28">
         <UnreleasedVault artistName={effectiveArtist.name} artistId={effectiveArtist.id} />
       </section>
     </div>

@@ -182,10 +182,14 @@ export interface UserProfile {
 
 export interface VaultTrack {
   id: string;
+  youtubeId?: string;
   title: string;
   artistName: string;
   durationFormatted: string;
   durationMs: number;
   url: string;
+  coverUrl?: string;
+  streamUrl?: string;
+  uploader?: string;
   viewCount?: number;
 }
