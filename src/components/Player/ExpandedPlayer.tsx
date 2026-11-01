@@ -166,7 +166,14 @@ export const ExpandedPlayer: React.FC = () => {
   };
 
   const fallbackCover = storeDefaultCover || '/default-cover.jpg';
-  const coverSrc = (!imageError && currentTrack.coverUrl) ? currentTrack.coverUrl : fallbackCover;
+  const rawCover = (!imageError && currentTrack.coverUrl) ? currentTrack.coverUrl : fallbackCover;
+  const highResCoverSrc = rawCover
+    ? rawCover
+        .replace(/\/\d+x\d+(-[a-f0-9]+)?/g, '/1000x1000')
+        .replace(/100x100bb/g, '1000x1000bb')
+        .replace(/250x250bb/g, '1000x1000bb')
+        .replace(/500x500bb/g, '1000x1000bb')
+    : fallbackCover;
 
   return (
     <div
@@ -175,31 +182,37 @@ export const ExpandedPlayer: React.FC = () => {
         backgroundColor: '#0a0a0c',
       }}
     >
-      {/* 0. FULL-BLEED CANVAS LAYER (Video if available or Cover Art Canvas with ambient gradient overlays) */}
+      {/* 0. FULL-BLEED CANVAS LAYER (Video if available or Ambient Glow Layer) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         {currentTrack.canvasUrl ? (
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            src={currentTrack.canvasUrl}
-            className="w-full h-full object-cover"
-          />
+          <>
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              src={currentTrack.canvasUrl}
+              className="w-full h-full object-cover"
+            />
+            {/* Ombre supérieure douce sous la barre de navigation */}
+            <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
+            {/* Fondu inférieur progressif vers le noir pour les contrôles et paroles */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/90 via-42% to-transparent" />
+          </>
         ) : (
-          <img
-            src={coverSrc}
-            alt={currentTrack.title}
-            onError={() => setImageError(true)}
-            referrerPolicy="no-referrer"
-            crossOrigin="anonymous"
-            className="w-full h-full object-cover object-center"
-          />
+          <>
+            {/* Aura d'ambiance liquide ultra-douce projetée par les couleurs de la pochette HD */}
+            <img
+              src={highResCoverSrc}
+              alt=""
+              onError={() => setImageError(true)}
+              referrerPolicy="no-referrer"
+              crossOrigin="anonymous"
+              className="w-full h-full object-cover scale-125 blur-3xl opacity-35 transition-all duration-700"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-[#0a0a0c]" />
+          </>
         )}
-        {/* Ombre supérieure douce sous la barre de navigation */}
-        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
-        {/* Fondu inférieur progressif vers le noir pour les contrôles et paroles */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/90 via-42% to-transparent" />
       </div>
 
       {/* 1. TOP HEADER (Chevron Down, Artist Name in clean uppercase tracking, More Options) */}
@@ -303,8 +316,21 @@ export const ExpandedPlayer: React.FC = () => {
         </div>
       )}
 
-      {/* 2. MAIN CANVAS BREATHING SPACE (Showcases the full artwork / video uninterrupted) */}
-      <div className="w-full max-w-md mx-auto flex-1 min-h-[30vh] sm:min-h-[38vh] relative z-10 flex items-center justify-center pointer-events-none" />
+      {/* 2. MAIN ARTWORK / CANVAS DISPLAY (Adapté iPhone 16 Pro Max 430x932 & Haute Définition) */}
+      <div className="w-full max-w-md mx-auto flex-1 min-h-[32vh] sm:min-h-[38vh] relative z-10 flex items-center justify-center px-6 py-2">
+        {!currentTrack.canvasUrl && (
+          <div className="relative aspect-square w-[76vw] max-w-[340px] rounded-3xl overflow-hidden shadow-[0_24px_70px_rgba(0,0,0,0.85)] border border-white/10 group animate-in zoom-in-95 duration-200">
+            <img
+              src={highResCoverSrc}
+              alt={currentTrack.title}
+              onError={() => setImageError(true)}
+              referrerPolicy="no-referrer"
+              crossOrigin="anonymous"
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+      </div>
 
       {/* 3. TRACK INFO & GREEN CHECKMARK CIRCLE (Exact match with reference screenshot) */}
       <div className="w-full max-w-md mx-auto px-6 relative z-10 flex items-center justify-between gap-4">

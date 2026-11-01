@@ -71,7 +71,8 @@ class StreamResolverService {
     artist: string,
     title: string,
     explicitYoutubeId?: string,
-    quality: string = 'very_high'
+    quality: string = 'very_high',
+    existingStreamUrl?: string
   ): Promise<StreamResolutionMetadata> {
     const key = this.getCacheKey(artist, title, quality);
 
@@ -117,9 +118,22 @@ class StreamResolverService {
         throw new Error('Missing url property in stream response');
       } catch (err) {
         console.warn(`[StreamResolver] Résolution yt-dlp échouée pour "${artist} - ${title}", tentative repli direct:`, err);
+        let dynamicUrl = '';
+        try {
+          const cleanQ = `${artist} ${title}`.replace(/Official Audio/gi, '').replace(/\(.*?\)/g, '').trim();
+          const itunesRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(cleanQ)}&entity=song&limit=1`);
+          if (itunesRes.ok) {
+            const itunesData = await itunesRes.json();
+            dynamicUrl = itunesData.results?.[0]?.previewUrl || '';
+          }
+        } catch {}
+
+        if (!dynamicUrl && existingStreamUrl) {
+          dynamicUrl = existingStreamUrl;
+        }
         const fallbackMeta: StreamResolutionMetadata = {
-          url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bf/20/4f/bf204f14-9fa0-7d7d-e717-b769f584e035/mzaf_11306359050637175240.plus.aac.p.m4a',
-          format: 'Flux Secours AAC 256 kbps',
+          url: dynamicUrl,
+          format: 'Flux Direct AAC 256 kbps',
           codec: 'audio/mp4 (AAC-LC)',
           bitrateKbps: 256,
           sampleRate: 44100,

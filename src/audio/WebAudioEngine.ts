@@ -247,7 +247,8 @@ export class WebAudioEngine {
     mediaSessionBridge.updateMetadata(track);
     mediaSessionBridge.updatePlaybackState('playing');
 
-    // Résolution audio intégrale obligatoire (élimine les previews tronqués à 30s)
+    // Résolution audio intégrale intelligente et sécurisée (zéro régression)
+    const initialStreamUrl = track.streamUrl;
     let streamUrl = track.streamUrl;
     if (!streamUrl || streamResolver.is30sPreview(streamUrl)) {
       try {
@@ -256,13 +257,28 @@ export class WebAudioEngine {
           track.artistName,
           track.title,
           (track as any).youtubeId,
-          quality
+          quality,
+          initialStreamUrl
         );
-        streamUrl = meta.url;
-        track.streamUrl = streamUrl;
-      } catch {
-        streamUrl = await musicApi.resolveFullAudioStream(track.artistName, track.title, track.streamUrl);
-        if (streamUrl) track.streamUrl = streamUrl;
+        if (meta && meta.url && meta.url.trim().length > 0) {
+          streamUrl = meta.url;
+          track.streamUrl = streamUrl;
+        }
+      } catch (err) {
+        console.warn('[WebAudioEngine] Erreur de résolution streamResolver:', err);
+      }
+
+      if (!streamUrl || streamUrl.trim().length === 0) {
+        try {
+          streamUrl = await musicApi.resolveFullAudioStream(track.artistName, track.title, initialStreamUrl);
+          if (streamUrl) track.streamUrl = streamUrl;
+        } catch {}
+      }
+
+      // Si aucune résolution n'a abouti, réutiliser le flux d'origine garanti
+      if (!streamUrl && initialStreamUrl) {
+        streamUrl = initialStreamUrl;
+        track.streamUrl = initialStreamUrl;
       }
     }
 

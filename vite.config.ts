@@ -180,42 +180,37 @@ function ytDlpStreamResolver(): Plugin {
 
         execFile(
           'python',
-          ['-m', 'yt_dlp', '-g', '-f', ytdlpFormat, '--no-playlist', ytTarget],
+          ['-m', 'yt_dlp', '--no-warnings', '-g', '-f', ytdlpFormat, '--no-playlist', ytTarget],
           { timeout: 15000 },
-          (err, stdout) => {
-            const fallbackUrl = 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bf/20/4f/bf204f14-9fa0-7d7d-e717-b769f584e035/mzaf_11306359050637175240.plus.aac.p.m4a';
-            if (err || !stdout?.trim()) {
-              const payload = JSON.stringify({
-                url: fallbackUrl,
-                format: formatLabel,
-                codec: detectedCodec,
-                bitrateKbps: estimatedBitrate,
-                sampleRate: effectiveSampleRate,
-                qualityMode: quality,
-                isFallback: true
-              });
-              res.setHeader('Content-Type', 'application/json');
-              res.end(payload);
-              return;
-            }
-            const lines = stdout.split(/\r?\n/).map(l => l.trim()).filter(l => l.startsWith('http'));
-            const streamUrl = lines[0];
+          async (err, stdout) => {
+            const lines = (stdout || '').split(/\r?\n/).map(l => l.trim()).filter(l => l.startsWith('http'));
+            let streamUrl = lines[0];
+
             if (!streamUrl) {
-              const payload = JSON.stringify({
-                url: fallbackUrl,
-                format: formatLabel,
-                codec: detectedCodec,
-                bitrateKbps: estimatedBitrate,
-                sampleRate: effectiveSampleRate,
-                qualityMode: quality,
-                isFallback: true
-              });
+              // Repli dynamique intelligent : recherche en direct le vrai flux du morceau demandé (zéro confusion)
+              try {
+                const cleanQuery = (q || id || '').replace(/Official Audio/gi, '').replace(/\(.*?\)/g, '').trim();
+                const itunesRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(cleanQuery)}&entity=song&limit=1`);
+                if (itunesRes.ok) {
+                  const itunesData = await itunesRes.json();
+                  if (itunesData.results?.[0]?.previewUrl) {
+                    streamUrl = itunesData.results[0].previewUrl;
+                  }
+                }
+              } catch {}
+            }
+
+            if (!streamUrl) {
+              res.statusCode = 404;
               res.setHeader('Content-Type', 'application/json');
-              res.end(payload);
+              res.end(JSON.stringify({ error: 'Flux audio introuvable pour ce titre', isFallback: false }));
               return;
             }
 
-            const proxiedUrl = `/api/stream-audio?url=${encodeURIComponent(streamUrl)}`;
+            const proxiedUrl = streamUrl.includes('googlevideo.com')
+              ? `/api/stream-audio?url=${encodeURIComponent(streamUrl)}`
+              : streamUrl;
+
             const payload = JSON.stringify({
               url: proxiedUrl,
               format: formatLabel,
@@ -223,7 +218,7 @@ function ytDlpStreamResolver(): Plugin {
               bitrateKbps: estimatedBitrate,
               sampleRate: effectiveSampleRate,
               qualityMode: quality,
-              isFallback: false
+              isFallback: !lines[0]
             });
             streamCache.set(normalizedKey, payload);
             res.setHeader('Content-Type', 'application/json');
