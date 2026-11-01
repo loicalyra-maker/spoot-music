@@ -109,6 +109,31 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Debug yt-dlp on container
+  if (pathname === '/api/debug-ytdlp') {
+    const q = parsedUrl.searchParams.get('q') || 'Tiakola Pona Nini';
+    execFile('yt-dlp', ['--version'], (vErr, vOut, vStderr) => {
+      execFile(
+        PYTHON_BIN,
+        ['-m', 'yt_dlp', '--no-warnings', '--extractor-args', 'youtube:player_client=android,web', '-g', '-f', 'bestaudio', '--no-playlist', 'ytsearch1:' + q],
+        { timeout: 15000 },
+        (err, stdout, stderr) => {
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({
+            ytdlpVersion: vOut ? vOut.trim() : (vErr ? vErr.message : null),
+            vStderr: vStderr ? vStderr.trim() : null,
+            python: PYTHON_BIN,
+            err: err ? err.message : null,
+            stdout: stdout ? stdout.trim() : null,
+            stderr: stderr ? stderr.trim() : null,
+          }));
+        }
+      );
+    });
+    return;
+  }
+
   // 2. Endpoint /api/stream-audio (Audio proxy with HTTP Range streaming & burst)
   if (pathname === '/api/stream-audio') {
     let targetUrl = parsedUrl.searchParams.get('url');
