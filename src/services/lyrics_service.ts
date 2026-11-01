@@ -150,74 +150,84 @@ class LyricsService {
     const cleanTitle = cleanQueryTerm(title);
     const durationSec = durationMs ? Math.round(durationMs / 1000) : undefined;
 
-    try {
-      const params = new URLSearchParams({
-        artist_name: cleanArtist,
-        track_name: cleanTitle,
-      });
-      if (durationSec && durationSec > 0) {
-        params.set('duration', String(durationSec));
-      }
+    const lrclibBases = ['/api/lrclib/api', 'https://lrclib.net/api'];
 
-      const getResp = await fetch(`/api/lrclib/api/get?${params.toString()}`, {
-        signal: AbortSignal.timeout(3500),
-      });
-
-      if (getResp.ok) {
-        const data = await getResp.json();
-        if (data?.instrumental === true) {
-          return { lyrics: [], isInstrumental: true, source: 'lrclib' };
+    for (const base of lrclibBases) {
+      try {
+        const params = new URLSearchParams({
+          artist_name: cleanArtist,
+          track_name: cleanTitle,
+        });
+        if (durationSec && durationSec > 0) {
+          params.set('duration', String(durationSec));
         }
-        if (data?.syncedLyrics) {
-          const parsed = parseLrcString(data.syncedLyrics);
-          if (parsed.length >= 4) {
-            return { lyrics: parsed, isInstrumental: false, source: 'lrclib' };
+
+        const getResp = await fetch(`${base}/get?${params.toString()}`, {
+          signal: AbortSignal.timeout(3500),
+        });
+
+        if (getResp.ok) {
+          const data = await getResp.json();
+          if (data?.instrumental === true) {
+            return { lyrics: [], isInstrumental: true, source: 'lrclib' };
           }
-        }
-      }
-    } catch {}
-
-    try {
-      const q = encodeURIComponent(`${cleanArtist} ${cleanTitle}`);
-      const searchResp = await fetch(`/api/lrclib/api/search?q=${q}`, {
-        signal: AbortSignal.timeout(3500),
-      });
-
-      if (searchResp.ok) {
-        const list = await searchResp.json();
-        if (Array.isArray(list) && list.length > 0) {
-          const syncedMatch = list.find((item: any) => item.syncedLyrics && item.syncedLyrics.trim().length > 0);
-          if (syncedMatch) {
-            const parsed = parseLrcString(syncedMatch.syncedLyrics);
+          if (data?.syncedLyrics) {
+            const parsed = parseLrcString(data.syncedLyrics);
             if (parsed.length >= 4) {
               return { lyrics: parsed, isInstrumental: false, source: 'lrclib' };
             }
           }
-          if (list[0]?.instrumental === true) {
-            return { lyrics: [], isInstrumental: true, source: 'lrclib' };
-          }
-          const plainMatch = list.find((item: any) => item.plainLyrics && item.plainLyrics.trim().length > 0);
-          if (plainMatch) {
-            const rawLines = plainMatch.plainLyrics
-              .split(/\r?\n/)
-              .map((l: string) => l.trim())
-              .filter(Boolean);
-            if (rawLines.length >= 4) {
-              const totalMs = durationMs || 180000;
-              const step = Math.max(2500, Math.floor((totalMs * 0.88) / rawLines.length));
-              return {
-                lyrics: rawLines.map((text: string, idx: number) => ({
-                  timeMs: 3000 + idx * step,
-                  text,
-                })),
-                isInstrumental: false,
-                source: 'lrclib',
-              };
+        }
+      } catch {}
+
+      try {
+        const queries = [
+          encodeURIComponent(`${cleanArtist} ${cleanTitle}`),
+          encodeURIComponent(cleanTitle),
+        ];
+
+        for (const q of queries) {
+          const searchResp = await fetch(`${base}/search?q=${q}`, {
+            signal: AbortSignal.timeout(3500),
+          });
+
+          if (searchResp.ok) {
+            const list = await searchResp.json();
+            if (Array.isArray(list) && list.length > 0) {
+              const syncedMatch = list.find((item: any) => item.syncedLyrics && item.syncedLyrics.trim().length > 0);
+              if (syncedMatch) {
+                const parsed = parseLrcString(syncedMatch.syncedLyrics);
+                if (parsed.length >= 4) {
+                  return { lyrics: parsed, isInstrumental: false, source: 'lrclib' };
+                }
+              }
+              if (list[0]?.instrumental === true) {
+                return { lyrics: [], isInstrumental: true, source: 'lrclib' };
+              }
+              const plainMatch = list.find((item: any) => item.plainLyrics && item.plainLyrics.trim().length > 0);
+              if (plainMatch) {
+                const rawLines = plainMatch.plainLyrics
+                  .split(/\r?\n/)
+                  .map((l: string) => l.trim())
+                  .filter(Boolean);
+                if (rawLines.length >= 4) {
+                  const totalMs = durationMs || 180000;
+                  const step = Math.max(2500, Math.floor((totalMs * 0.88) / rawLines.length));
+                  return {
+                    lyrics: rawLines.map((text: string, idx: number) => ({
+                      timeMs: 3000 + idx * step,
+                      text,
+                    })),
+                    isInstrumental: false,
+                    source: 'lrclib',
+                  };
+                }
+              }
             }
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
 
     return null;
   }

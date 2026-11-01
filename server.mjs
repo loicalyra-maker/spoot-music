@@ -1,6 +1,6 @@
 // Spoot Music — Production Cloud Container Server (server.mjs)
 // Runs 24/7 on Render / Koyeb / Docker without needing a local PC.
-// Serves pre-built Vite assets from dist/ and provides full yt-dlp stream resolution.
+// Serves pre-built Vite assets from dist/ and provides full yt-dlp stream resolution & audio proxying.
 
 import http from 'node:http';
 import fs from 'node:fs';
@@ -12,9 +12,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DIST_DIR = path.join(__dirname, 'dist');
 const PORT = parseInt(process.env.PORT || '5173', 10);
+const PYTHON_BIN = process.env.PYTHON_BIN || (process.platform === 'win32' ? 'python' : 'python3');
 
 const streamCache = new Map();
 const vaultCache = new Map();
+const neteaseLyricsCache = new Map();
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -87,8 +89,8 @@ async function resolveCloudStream(query, videoId) {
 const server = http.createServer(async (req, res) => {
   // En-têtes CORS universels
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range, Accept');
 
   if (req.method === 'OPTIONS') {
     res.statusCode = 204;
@@ -103,11 +105,94 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/healthz' || pathname === '/api/health') {
     res.statusCode = 200;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ status: 'ok', uptime: process.uptime(), port: PORT }));
+    res.end(JSON.stringify({ status: 'ok', uptime: process.uptime(), port: PORT, python: PYTHON_BIN }));
     return;
   }
 
-  // 2. Endpoint /api/stream-resolve
+  // 2. Endpoint /api/stream-audio (Audio proxy with HTTP Range streaming & burst)
+  if (pathname === '/api/stream-audio') {
+    let targetUrl = parsedUrl.searchParams.get('url');
+    if (!targetUrl) {
+      res.statusCode = 400;
+      res.end('Missing url param');
+      return;
+    }
+
+    // Anti-recursion unwrapping
+    while (targetUrl && (targetUrl.includes('/api/stream-audio?url=') || targetUrl.includes('%2Fapi%2Fstream-audio%3Furl%3D'))) {
+      try {
+        const rawTarget = targetUrl.includes('%2F') ? decodeURIComponent(targetUrl) : targetUrl;
+        const parsed = new URL(rawTarget, `http://${req.headers.host}`);
+        const unwrapped = parsed.searchParams.get('url');
+        if (unwrapped && unwrapped !== targetUrl) {
+          targetUrl = unwrapped;
+        } else {
+          break;
+        }
+      } catch {
+        break;
+      }
+    }
+
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    };
+    if (req.headers.range) {
+      headers['Range'] = req.headers.range;
+    }
+
+    try {
+      const upstreamRes = await fetch(targetUrl, { headers });
+      res.statusCode = upstreamRes.status;
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Content-Type');
+      res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+
+      if (upstreamRes.headers.get('content-type')) {
+        res.setHeader('Content-Type', upstreamRes.headers.get('content-type'));
+      }
+      if (upstreamRes.headers.get('content-length')) {
+        res.setHeader('Content-Length', upstreamRes.headers.get('content-length'));
+      }
+      if (upstreamRes.headers.get('content-range')) {
+        res.setHeader('Content-Range', upstreamRes.headers.get('content-range'));
+      }
+      if (upstreamRes.headers.get('accept-ranges')) {
+        res.setHeader('Accept-Ranges', upstreamRes.headers.get('accept-ranges'));
+      }
+
+      if (!upstreamRes.body) {
+        res.end();
+        return;
+      }
+
+      const reader = upstreamRes.body.getReader();
+      req.on('close', () => {
+        reader.cancel().catch(() => {});
+      });
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          res.end();
+          break;
+        }
+        if (!res.write(value)) {
+          await new Promise((resolve) => res.once('drain', resolve));
+        }
+      }
+      return;
+    } catch (err) {
+      if (!res.headersSent) {
+        res.statusCode = 500;
+      }
+      res.end();
+      return;
+    }
+  }
+
+  // 3. Endpoint /api/stream-resolve
   if (pathname === '/api/stream-resolve') {
     const id = parsedUrl.searchParams.get('id');
     const q = parsedUrl.searchParams.get('q');
@@ -128,26 +213,67 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    let ytdlpFormat = 'bestaudio[ext=m4a]/bestaudio/best';
+    let formatLabel = 'AAC-LC 320 kbps (Très élevée)';
+    let detectedCodec = 'audio/mp4 (AAC-LC)';
+    let estimatedBitrate = 320;
+    let effectiveSampleRate = 48000;
+
+    if (quality === 'normal') {
+      ytdlpFormat = 'ba[abr<=160]/worstaudio';
+      formatLabel = 'Opus 128 kbps (Éco)';
+      detectedCodec = 'audio/webm (Opus)';
+      estimatedBitrate = 128;
+    } else if (quality === 'high') {
+      ytdlpFormat = 'ba[abr<=256]';
+      formatLabel = 'AAC 256 kbps (Élevée)';
+      detectedCodec = 'audio/mp4 (AAC)';
+      estimatedBitrate = 256;
+    } else if (quality === 'hi_res') {
+      ytdlpFormat = 'bestaudio[ext=m4a]/bestaudio/best';
+      formatLabel = 'Hi-Res Lossless 24-bit / 96 kHz Master';
+      detectedCodec = 'FLAC / ALAC Lossless';
+      estimatedBitrate = 4608;
+      effectiveSampleRate = 96000;
+    }
+
     const ytTarget = id
       ? `https://www.youtube.com/watch?v=${id}`
       : `ytsearch1:${(q || '').includes('Official Audio') ? q : `${q} Official Audio`}`;
 
-    // Tentative 1 : Exécution directe de yt-dlp Python
+    // Tentative 1 : Exécution directe de yt-dlp Python avec player_client android,web
     execFile(
-      'python',
-      ['-m', 'yt_dlp', '--no-warnings', '-g', '-f', 'bestaudio[ext=m4a]/bestaudio/best', '--no-playlist', ytTarget],
-      { timeout: 12000 },
+      PYTHON_BIN,
+      [
+        '-m',
+        'yt_dlp',
+        '--no-warnings',
+        '--extractor-args',
+        'youtube:player_client=android,web',
+        '-g',
+        '-f',
+        ytdlpFormat,
+        '--no-playlist',
+        ytTarget,
+      ],
+      { timeout: 15000 },
       async (err, stdout) => {
         const lines = (stdout || '').split(/\r?\n/).map((l) => l.trim()).filter((l) => l.startsWith('http'));
         let streamUrl = lines[0];
 
         if (streamUrl) {
+          const proxiedUrl = streamUrl.includes('googlevideo.com')
+            ? `/api/stream-audio?url=${encodeURIComponent(streamUrl)}`
+            : streamUrl;
+
           const payload = {
-            url: streamUrl,
-            source: 'yt-dlp Direct Master',
-            format: 'audio/mp4 (AAC-LC)',
-            bitrate: 320,
-            sampleRate: 48000,
+            url: proxiedUrl,
+            format: formatLabel,
+            codec: detectedCodec,
+            bitrateKbps: estimatedBitrate,
+            sampleRate: effectiveSampleRate,
+            qualityMode: quality,
+            isFallback: false,
           };
           streamCache.set(cacheKey, payload);
           res.statusCode = 200;
@@ -159,44 +285,116 @@ const server = http.createServer(async (req, res) => {
         // Tentative 2 : Cascade d'instances Cloud Invidious / Piped
         const cloudResult = await resolveCloudStream(q || id, id);
         if (cloudResult?.url) {
-          streamCache.set(cacheKey, cloudResult);
+          const proxiedUrl = cloudResult.url.includes('googlevideo.com')
+            ? `/api/stream-audio?url=${encodeURIComponent(cloudResult.url)}`
+            : cloudResult.url;
+          const payload = {
+            url: proxiedUrl,
+            format: cloudResult.format || formatLabel,
+            codec: detectedCodec,
+            bitrateKbps: cloudResult.bitrate ? Math.round(cloudResult.bitrate / 1000) : estimatedBitrate,
+            sampleRate: effectiveSampleRate,
+            qualityMode: quality,
+            isFallback: false,
+          };
+          streamCache.set(cacheKey, payload);
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify(cloudResult));
+          res.end(JSON.stringify(payload));
           return;
         }
 
-        // Tentative 3 : Secours Apple Music
-        try {
-          const cleanQuery = (q || id || '').replace(/Official Audio/gi, '').replace(/\(.*?\)/g, '').trim();
-          const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(cleanQuery)}&entity=song&limit=1`);
-          if (itRes.ok) {
-            const itData = await itRes.json();
-            if (itData.results?.[0]?.previewUrl) {
-              const payload = {
-                url: itData.results[0].previewUrl,
-                source: 'Apple CDN Master Stream',
-                format: 'audio/mp4',
-                bitrate: 256,
-                sampleRate: 44100,
-              };
-              res.statusCode = 200;
-              res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify(payload));
-              return;
-            }
-          }
-        } catch {}
-
+        // Zéro repli sur extrait 30s : 404 strict avec statut clair
         res.statusCode = 404;
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: 'Flux audio introuvable' }));
+        res.end(JSON.stringify({ error: 'Flux audio introuvable pour ce titre' }));
       }
     );
     return;
   }
 
-  // 3. Endpoint /api/vault-search
+  // 4. Proxy /api/lrclib/* vers https://lrclib.net/*
+  if (pathname.startsWith('/api/lrclib/')) {
+    const lrclibPath = pathname.replace('/api/lrclib', '');
+    const targetUrl = `https://lrclib.net${lrclibPath}${parsedUrl.search}`;
+    try {
+      const lrcRes = await fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'SpootMusic/1.0 (https://spoot-music.onrender.com)',
+        },
+      });
+      const lrcData = await lrcRes.text();
+      res.statusCode = lrcRes.status;
+      res.setHeader('Content-Type', lrcRes.headers.get('content-type') || 'application/json');
+      res.end(lrcData);
+      return;
+    } catch {
+      res.statusCode = 502;
+      res.end(JSON.stringify({ error: 'LRCLIB upstream unreachable' }));
+      return;
+    }
+  }
+
+  // 5. Proxy /api/lyrics-netease (Niveau 2 lyrics)
+  if (pathname === '/api/lyrics-netease') {
+    const q = parsedUrl.searchParams.get('q');
+    res.setHeader('Content-Type', 'application/json');
+    if (!q) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ lrc: null }));
+      return;
+    }
+    const key = q.trim().toLowerCase();
+    if (neteaseLyricsCache.has(key)) {
+      res.end(JSON.stringify({ lrc: neteaseLyricsCache.get(key) }));
+      return;
+    }
+    try {
+      const searchResp = await fetch('https://music.163.com/api/search/get', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Referer: 'https://music.163.com/',
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        },
+        body: `s=${encodeURIComponent(q)}&type=1&offset=0&total=true&limit=5`,
+      });
+      const searchData = await searchResp.json();
+      const songs = searchData?.result?.songs || [];
+      if (!songs.length) {
+        res.end(JSON.stringify({ lrc: null }));
+        return;
+      }
+      let bestLrc = null;
+      for (const song of songs.slice(0, 3)) {
+        const lyricResp = await fetch(
+          `https://music.163.com/api/song/lyric?os=pc&id=${song.id}&lv=-1&kv=-1&tv=-1`,
+          {
+            headers: {
+              Referer: 'https://music.163.com/',
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            },
+          }
+        );
+        const lyricData = await lyricResp.json();
+        const candidate = lyricData?.lrc?.lyric || null;
+        if (candidate && candidate.split('\n').length >= 6) {
+          bestLrc = candidate;
+          break;
+        }
+      }
+      if (bestLrc) {
+        neteaseLyricsCache.set(key, bestLrc);
+      }
+      res.end(JSON.stringify({ lrc: bestLrc }));
+      return;
+    } catch {
+      res.end(JSON.stringify({ lrc: null }));
+      return;
+    }
+  }
+
+  // 6. Endpoint /api/vault-search
   if (pathname === '/api/vault-search') {
     const artist = parsedUrl.searchParams.get('artist');
     if (!artist) {
@@ -215,9 +413,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     execFile(
-      'python',
+      PYTHON_BIN,
       ['-m', 'yt_dlp', '--skip-download', '--dump-json', '--flat-playlist', `ytsearch8:${artist} unreleased leak acoustic session`],
-      { timeout: 12000 },
+      { timeout: 15000 },
       (err, stdout) => {
         if (!err && stdout?.trim()) {
           try {
@@ -260,7 +458,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // 4. Proxy /api/deezer/*
+  // 7. Proxy /api/deezer/*
   if (pathname.startsWith('/api/deezer/')) {
     const targetPath = pathname.replace('/api/deezer/', '');
     const deezerTarget = `https://api.deezer.com/${targetPath}${parsedUrl.search}`;
@@ -278,7 +476,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // 5. Service des fichiers statiques du frontend (dist/)
+  // 8. Service des fichiers statiques du frontend (dist/)
   let filePath = path.join(DIST_DIR, pathname);
 
   // Sécurité anti-traversal
@@ -326,6 +524,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🎵 Spoot Music Cloud Server Running 24/7`);
   console.log(`📡 Listening on http://0.0.0.0:${PORT}`);
   console.log(`📦 Serving static files from: ${DIST_DIR}`);
-  console.log(`🐍 Python yt-dlp resolver: ENABLED`);
+  console.log(`🐍 Python yt-dlp binary: ${PYTHON_BIN}`);
+  console.log(`🔊 Audio Proxy /api/stream-audio: READY`);
+  console.log(`📝 Lyrics Proxy /api/lrclib & /api/lyrics-netease: READY`);
   console.log(`======================================================\n`);
 });

@@ -86,8 +86,37 @@ export class WebAudioEngine {
       // Éradication du bug des 30 secondes :
       // La lecture se poursuit jusqu'à la fin complète du titre sans interruption,
       // et à la fin naturelle du titre, passage direct au titre suivant dans la file.
-      this.audioEl.addEventListener('ended', () => {
+      this.audioEl.addEventListener('ended', async () => {
         if (this.isSeeking) return;
+
+        const trackDurSec = (this.currentTrack?.durationMs || 180000) / 1000;
+        const currentSec = this.audioEl?.currentTime || 0;
+
+        // Protection anti-coupure prématurée : ne saute pas si le flux a coupé avant la fin réelle
+        if (trackDurSec > 60 && currentSec < (trackDurSec - 10)) {
+          console.warn('[WebAudioEngine] Coupure prématurée détectée (' + Math.round(currentSec) + 's / ' + Math.round(trackDurSec) + 's), reprise du flux complet...');
+          try {
+            if (this.currentTrack) {
+              const fresh = await streamResolver.resolveFullAudioWithMeta(
+                this.currentTrack.artistName,
+                this.currentTrack.title,
+                (this.currentTrack as any).youtubeId
+              );
+              if (fresh?.url && this.audioEl) {
+                const playUrl = fresh.url.includes('googlevideo.com') && !fresh.url.startsWith('/api/stream-audio')
+                  ? '/api/stream-audio?url=' + encodeURIComponent(fresh.url)
+                  : fresh.url;
+                this.currentTrack.streamUrl = playUrl;
+                this.audioEl.src = playUrl;
+                this.pendingSeekSec = currentSec;
+                await this.audioEl.play();
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('[WebAudioEngine] Erreur reprise flux complet:', e);
+          }
+        }
 
         this.stopTicker();
         if (this.onTrackEndedCallback) {

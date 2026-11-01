@@ -40,6 +40,7 @@ export const ExpandedPlayer: React.FC = () => {
   } = useSpootStore();
 
   const storeDefaultCover = useThemeStore((s) => s.defaultCoverUrl);
+  const storeBackgroundImg = useThemeStore((s) => s.backgroundImageUrl);
   const [imageError, setImageError] = useState(false);
   const [creditsExpanded, setCreditsExpanded] = useState(false);
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
@@ -168,10 +169,13 @@ export const ExpandedPlayer: React.FC = () => {
     }
   };
 
-  // Seuls les titres du Vault / Unreleased utilisent Sasuke comme fallback de secours
+  // Image récurrente personnalisée ou fallback officiel
   const isUnreleasedTrack = Boolean(currentTrack.isUnreleased);
-  const fallbackCover = isUnreleasedTrack ? (storeDefaultCover || '/default-cover.jpg') : '';
-  const rawCover = (!imageError && currentTrack.coverUrl) ? currentTrack.coverUrl : fallbackCover;
+  const customRecurrent = (storeDefaultCover && storeDefaultCover !== '/default-cover.jpg')
+    ? storeDefaultCover
+    : (storeBackgroundImg || null);
+  const fallbackCover = customRecurrent || (isUnreleasedTrack ? '/default-cover.jpg' : '');
+  const rawCover = (!imageError && currentTrack.coverUrl) ? currentTrack.coverUrl : (fallbackCover || currentTrack.coverUrl || '');
   const highResCoverSrc = rawCover
     ? rawCover
         .replace(/\/\d+x\d+-/g, '/1000x1000-')
@@ -180,13 +184,13 @@ export const ExpandedPlayer: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-between bg-[#080808] text-white select-none overflow-y-auto no-scrollbar animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex flex-col justify-between w-full h-[100dvh] min-h-[100dvh] bg-[#080808] text-white select-none overflow-y-auto no-scrollbar animate-in fade-in duration-200"
       style={{
         backgroundColor: '#0a0a0c',
       }}
     >
-      {/* 0. IMMERSIVE CANVAS / ARTWORK BACKGROUND (Style Spotify Mobile Canvas HD - 0 Flou) */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+      {/* 0. IMMERSIVE CANVAS / ARTWORK BACKGROUND (Style Spotify Mobile Canvas HD - 100% Plein Écran iPhone 16 Pro Max 430x932) */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 w-full h-[100dvh]">
         {currentTrack.canvasUrl ? (
           <video
             autoPlay
@@ -194,13 +198,21 @@ export const ExpandedPlayer: React.FC = () => {
             muted
             playsInline
             src={currentTrack.canvasUrl}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover object-center"
           />
         ) : highResCoverSrc ? (
           <img
             src={highResCoverSrc}
             alt=""
-            onError={() => setImageError(true)}
+            onError={() => {
+              if (currentTrack.coverUrl && highResCoverSrc !== currentTrack.coverUrl) {
+                const img = document.querySelector('[data-expanded-bg]') as HTMLImageElement;
+                if (img) img.src = currentTrack.coverUrl;
+              } else {
+                setImageError(true);
+              }
+            }}
+            data-expanded-bg="true"
             referrerPolicy="no-referrer"
             crossOrigin="anonymous"
             className={`w-full h-full object-cover object-center transition-all duration-700 ${
@@ -210,10 +222,10 @@ export const ExpandedPlayer: React.FC = () => {
         ) : null}
 
         {/* Dégradé supérieur pour lisibilité de la barre supérieure */}
-        <div className="absolute top-0 inset-x-0 h-44 bg-gradient-to-b from-black/85 via-black/35 to-transparent pointer-events-none" />
+        <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-black/85 via-black/30 to-transparent pointer-events-none" />
 
-        {/* Dégradé inférieur progressif pour intégration naturelle des commandes et des paroles */}
-        <div className="absolute inset-x-0 bottom-0 h-[65%] bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/85 via-45% to-transparent pointer-events-none" />
+        {/* Dégradé inférieur progressif : lisibilité des commandes sans occulter l'image plein écran */}
+        <div className="absolute inset-x-0 bottom-0 h-[48%] bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/70 via-50% to-transparent pointer-events-none" />
       </div>
 
       {/* 1. TOP HEADER (Chevron Down, Artist Name in clean uppercase tracking, More Options) */}

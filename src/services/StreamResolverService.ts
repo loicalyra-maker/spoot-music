@@ -117,31 +117,22 @@ class StreamResolverService {
         }
         throw new Error('Missing url property in stream response');
       } catch (err) {
-        console.warn(`[StreamResolver] Résolution yt-dlp échouée pour "${artist} - ${title}", tentative repli direct:`, err);
-        let dynamicUrl = '';
-        try {
-          const cleanQ = `${artist} ${title}`.replace(/Official Audio/gi, '').replace(/\(.*?\)/g, '').trim();
-          const itunesRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(cleanQ)}&entity=song&limit=1`);
-          if (itunesRes.ok) {
-            const itunesData = await itunesRes.json();
-            dynamicUrl = itunesData.results?.[0]?.previewUrl || '';
-          }
-        } catch {}
-
-        if (!dynamicUrl && existingStreamUrl) {
-          dynamicUrl = existingStreamUrl;
+        console.warn(`[StreamResolver] Résolution intégrale pour "${artist} - ${title}":`, err);
+        // Interdiction absolue d'injecter des extraits 30 secondes tronqués d'iTunes
+        if (existingStreamUrl && !this.is30sPreview(existingStreamUrl)) {
+          const fallbackMeta: StreamResolutionMetadata = {
+            url: existingStreamUrl,
+            format: 'Flux Direct AAC 256 kbps',
+            codec: 'audio/mp4 (AAC-LC)',
+            bitrateKbps: 256,
+            sampleRate: 44100,
+            qualityMode: quality,
+            isFallback: true,
+          };
+          this.currentActiveMetadata = fallbackMeta;
+          return fallbackMeta;
         }
-        const fallbackMeta: StreamResolutionMetadata = {
-          url: dynamicUrl,
-          format: 'Flux Direct AAC 256 kbps',
-          codec: 'audio/mp4 (AAC-LC)',
-          bitrateKbps: 256,
-          sampleRate: 44100,
-          qualityMode: quality,
-          isFallback: true,
-        };
-        this.currentActiveMetadata = fallbackMeta;
-        return fallbackMeta;
+        throw err;
       } finally {
         this.resolving.delete(key);
       }
