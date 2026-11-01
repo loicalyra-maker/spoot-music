@@ -36,7 +36,7 @@ export const HomeView: React.FC = () => {
     sections,
   } = useThemeStore();
 
-  const { widgets, openCustomizer } = useHomeLayoutStore();
+  const { widgets, slots, openCustomizer } = useHomeLayoutStore();
   const isLiquidGlass = themeMode === 'liquid-glass';
   const isPlaying = playbackStatus === 'Playing';
 
@@ -801,22 +801,31 @@ export const HomeView: React.FC = () => {
     </section>
   );
 
-  // 4. Rendu "Conçu pour vous" (Daily Mixes avec Mosaïque 2x2)
+  // 4. Rendu "Conçu pour vous" & Studio de Slots Modulaires (Daily Mixes remplaçables par Artistes / Playlists / Sorties)
   const renderDailyMix = () => (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <span className="text-[11px] font-black text-cyan-300/70 uppercase tracking-widest block">Conçu pour vous</span>
+          <span className="text-[11px] font-black text-cyan-300/70 uppercase tracking-widest block">Conçu pour vous • Slots Modulaires</span>
           <h2 className="text-xl font-black tracking-tight text-white hover:underline cursor-pointer">
-            Daily Mix Spoot
+            Daily Mix & Sélections Épinglées
           </h2>
         </div>
-        <button
-          onClick={() => setExpandedSection('daily_mix')}
-          className="text-xs font-bold text-cyan-300/80 hover:text-white hover:underline cursor-pointer"
-        >
-          Tout afficher
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={openCustomizer}
+            className="px-3 py-1 rounded-full bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-[11px] font-extrabold text-cyan-300 flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            <Sliders className="w-3 h-3" />
+            <span>Éditer les slots</span>
+          </button>
+          <button
+            onClick={() => setExpandedSection('daily_mix')}
+            className="text-xs font-bold text-cyan-300/80 hover:text-white hover:underline cursor-pointer"
+          >
+            Tout afficher
+          </button>
+        </div>
       </div>
 
       <div
@@ -826,85 +835,118 @@ export const HomeView: React.FC = () => {
             : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5'
         }`}
       >
-        {dailyMixes.map((mix) => (
-          <motion.div
-            key={mix.id}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            transition={{ type: 'spring', damping: 24, stiffness: 350 }}
-            onClick={() => openPlaylist(mix.id)}
-            className={`p-3.5 ${cornerRadius} transition-all duration-300 group cursor-pointer flex flex-col relative shadow-sm ${
-              isLiquidGlass ? 'liquid-glass-card' : 'bg-[#181818]/90 hover:bg-[#282828]'
-            }`}
-          >
-            <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-[#181818] mb-3 shadow-md">
-              {/* Mosaïque 2x2 de 4 pochettes d'albums réelles */}
-              {mix.covers && mix.covers.length === 4 ? (
-                <div className="grid grid-cols-2 grid-rows-2 w-full h-full">
-                  {mix.covers.map((c, i) => (
-                    <img
-                      key={i}
-                      src={c}
-                      alt={`${mix.title} ${i}`}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                  ))}
+        {dailyMixes.map((mix, idx) => {
+          const customSlot = slots[idx];
+          const isSlotCustom = customSlot && customSlot.type !== 'daily_mix';
+          const displayTitle = isSlotCustom ? customSlot.title : mix.title;
+          const displaySubtitle = isSlotCustom ? (customSlot.subtitle || 'Slot personnalisé') : mix.subtitle;
+          const displayCover = isSlotCustom && customSlot.customImageUrl ? customSlot.customImageUrl : mix.coverUrl;
+
+          const handleSlotClick = () => {
+            if (!isSlotCustom) {
+              openPlaylist(mix.id);
+              return;
+            }
+            if (customSlot.type === 'custom_artist' && customSlot.targetId) {
+              openArtist(customSlot.targetId);
+            } else if (customSlot.type === 'custom_playlist' && customSlot.targetId) {
+              openPlaylist(customSlot.targetId);
+            } else if (customSlot.type === 'recent_releases') {
+              setExpandedSection('friday_new');
+            } else {
+              openPlaylist(mix.id);
+            }
+          };
+
+          return (
+            <motion.div
+              key={customSlot?.slotId || mix.id}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: 'spring', damping: 24, stiffness: 350 }}
+              onClick={handleSlotClick}
+              className={`p-3.5 ${cornerRadius} transition-all duration-300 group cursor-pointer flex flex-col relative shadow-sm ${
+                isLiquidGlass ? 'liquid-glass-card' : 'bg-[#181818]/90 hover:bg-[#282828]'
+              }`}
+            >
+              <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-[#181818] mb-3 shadow-md">
+                {!isSlotCustom && mix.covers && mix.covers.length === 4 ? (
+                  <div className="grid grid-cols-2 grid-rows-2 w-full h-full">
+                    {mix.covers.map((c, i) => (
+                      <img
+                        key={i}
+                        src={c}
+                        alt={`${displayTitle} ${i}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <img
+                    src={displayCover}
+                    alt={displayTitle}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=500&q=80';
+                    }}
+                  />
+                )}
+
+                {/* Badge Authentique Slot / Daily Mix */}
+                <div className="absolute bottom-2 left-2 flex items-center gap-1.5 z-10">
+                  <span className="px-2 py-0.5 rounded-lg bg-black/85 text-[10px] font-black uppercase tracking-wider text-white border border-white/10 shadow-md">
+                    {isSlotCustom
+                      ? customSlot.type === 'custom_artist'
+                        ? 'Artiste'
+                        : customSlot.type === 'custom_playlist'
+                        ? 'Playlist'
+                        : 'Radar'
+                      : 'Daily Mix'}
+                  </span>
+                  <span
+                    style={{ backgroundColor: isSlotCustom ? '#10b981' : mix.badgeColor }}
+                    className="px-1.5 py-0.5 rounded-lg text-[10px] font-black text-black shadow-md"
+                  >
+                    {isSlotCustom ? `S${idx + 1}` : mix.number}
+                  </span>
                 </div>
-              ) : (
-                <img
-                  src={mix.coverUrl}
-                  alt={mix.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=500&q=80';
-                  }}
-                />
-              )}
 
-              {/* Badge Authentique Spotify / Apple Pill */}
-              <div className="absolute bottom-2 left-2 flex items-center gap-1.5 z-10">
-                <span className="px-2 py-0.5 rounded-lg bg-black/85 text-[10px] font-black uppercase tracking-wider text-white border border-white/10 shadow-md">
-                  Daily Mix
-                </span>
-                <span
-                  style={{ backgroundColor: mix.badgeColor }}
-                  className="px-1.5 py-0.5 rounded-lg text-[10px] font-black text-black shadow-md"
-                >
-                  {mix.number}
-                </span>
+                {/* Bouton de lecture au survol */}
+                <div className="absolute bottom-2.5 right-2.5 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all duration-300 z-20">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isSlotCustom) {
+                        handleSlotClick();
+                        return;
+                      }
+                      handlePlayCard({
+                        id: mix.id,
+                        title: mix.title,
+                        subtitle: mix.subtitle,
+                        coverUrl: mix.coverUrl,
+                        bannerText: mix.title,
+                        artistName: mix.artistName,
+                        trackTitle: mix.trackTitle,
+                      });
+                    }}
+                    className="w-10 h-10 rounded-full liquid-glass-play-btn flex items-center justify-center cursor-pointer shadow-xl active:scale-95"
+                    title="Lecture"
+                  >
+                    <Play className="w-4 h-4 fill-black text-black ml-0.5" />
+                  </button>
+                </div>
               </div>
 
-              {/* Bouton de lecture au survol */}
-              <div className="absolute bottom-2.5 right-2.5 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 translate-y-2 transition-all duration-300 z-20">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePlayCard({
-                      id: mix.id,
-                      title: mix.title,
-                      subtitle: mix.subtitle,
-                      coverUrl: mix.coverUrl,
-                      bannerText: mix.title,
-                      artistName: mix.artistName,
-                      trackTitle: mix.trackTitle,
-                    });
-                  }}
-                  className="w-10 h-10 rounded-full liquid-glass-play-btn flex items-center justify-center cursor-pointer shadow-xl active:scale-95"
-                  title="Lecture"
-                >
-                  <Play className="w-4 h-4 fill-black text-black ml-0.5" />
-                </button>
-              </div>
-            </div>
-
-            <h3 className="font-bold text-sm text-white truncate mb-0.5">
-              {mix.title}
-            </h3>
-            <p className="text-xs text-white/50 line-clamp-2 leading-relaxed">
-              {mix.subtitle}
-            </p>
-          </motion.div>
-        ))}
+              <h3 className="font-bold text-sm text-white truncate mb-0.5">
+                {displayTitle}
+              </h3>
+              <p className="text-xs text-white/50 line-clamp-2 leading-relaxed">
+                {displaySubtitle}
+              </p>
+            </motion.div>
+          );
+        })}
       </div>
     </section>
   );

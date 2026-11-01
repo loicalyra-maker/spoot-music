@@ -9,7 +9,7 @@ export const LyricsOverlay: React.FC = () => {
   if (!lyricsOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/85 backdrop-blur-3xl animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[70] flex flex-col bg-black/95 backdrop-blur-3xl animate-in fade-in duration-200">
       <LyricsPanel onClose={() => setLyricsOpen(false)} isOverlay={true} />
     </div>
   );

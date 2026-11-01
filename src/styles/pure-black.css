@@ -1,0 +1,60 @@
+/* ============================================================================
+   Spoot Music — True Black OLED (#000000) & A18 Pro Power Suspension CSS
+   Optimisé pour la dalle Super Retina XDR LTPO OLED (1 Hz – 120 Hz) de l'iPhone 16 Pro Max
+   Chaque pixel #000000 est physiquement éteint (consommation = 0.00 mW)
+   ============================================================================ */
+
+:root[data-oled-true-black="true"],
+.theme-pure-black {
+  --bg-oled-true-black: #000000;
+  --surface-oled-card: #060608;
+  --surface-oled-elevated: #0c0c10;
+  --border-oled-subtle: rgba(255, 255, 255, 0.07);
+}
+
+:root[data-oled-true-black="true"] body,
+.theme-pure-black body,
+:root[data-oled-true-black="true"] #root,
+.theme-pure-black #root {
+  background-color: #000000 !important;
+  color: #ffffff;
+}
+
+/* Extinction des fonds gris intermédiaires sur l'écran d'accueil et les listes en mode True Black */
+:root[data-oled-true-black="true"] main,
+.theme-pure-black main {
+  background-color: #000000 !important;
+}
+
+:root[data-oled-true-black="true"] .liquid-glass-surface {
+  background: rgba(5, 5, 8, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ============================================================================
+   Cycle de Vie en Arrière-Plan : Gel absolu du moteur de rendu (Zéro CPU/GPU)
+   Activé instantanément par PowerManager dès que document.hidden === true
+   ============================================================================ */
+html.spoot-power-suspended *,
+html.spoot-power-suspended *::before,
+html.spoot-power-suspended *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+  will-change: auto !important;
+}
+
+html.spoot-power-suspended .animate-fluid-mesh,
+html.spoot-power-suspended .animate-wave-pulse,
+html.spoot-power-suspended canvas {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+/* ============================================================================
+   Optimisation ProMotion LTPO (1 Hz statique -> 120 Hz au touch)
+   ============================================================================ */
+.promotion-scroll-container {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+}

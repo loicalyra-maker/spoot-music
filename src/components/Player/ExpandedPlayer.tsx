@@ -10,7 +10,7 @@ import {
   Sliders, Mic2, ShieldAlert, X, Maximize2
 } from 'lucide-react';
 import { useSpootStore } from '../../store/useSpootStore';
-import { deezerService } from '../../services/deezer_service';
+import { lyricsService } from '../../services/lyrics_service';
 import { LyricLine } from '../../types';
 
 export const ExpandedPlayer: React.FC = () => {
@@ -48,7 +48,9 @@ export const ExpandedPlayer: React.FC = () => {
   const lyricsPreviewContainerRef = useRef<HTMLDivElement | null>(null);
   const activePreviewLineRef = useRef<HTMLDivElement | null>(null);
 
-  const lyrics: LyricLine[] = currentTrack?.lyrics || [];
+  const [resolvedPreviewLyrics, setResolvedPreviewLyrics] = useState<LyricLine[]>([]);
+  const [previewInstrumental, setPreviewInstrumental] = useState(false);
+  const lyrics: LyricLine[] = resolvedPreviewLyrics.length > 0 ? resolvedPreviewLyrics : (currentTrack?.lyrics || []);
   const activeLyricIndex = lyrics.findIndex((line, idx) => {
     const nextLine = lyrics[idx + 1];
     if (nextLine) {
@@ -68,13 +70,18 @@ export const ExpandedPlayer: React.FC = () => {
   }, [currentLyricIndex]);
 
   useEffect(() => {
-    if (currentTrack && (!currentTrack.lyrics || currentTrack.lyrics.length === 0)) {
-      deezerService.getSyncedLyrics(currentTrack.artistName, currentTrack.title, durationMs || currentTrack.durationMs).then((res) => {
-        if (res.lyrics && res.lyrics.length > 0) {
-          currentTrack.lyrics = res.lyrics;
-        }
-      });
-    }
+    if (!currentTrack) return;
+    setPreviewInstrumental(false);
+    lyricsService.getSyncedLyrics(currentTrack.artistName, currentTrack.title, durationMs || currentTrack.durationMs).then((res) => {
+      if (res.lyrics && res.lyrics.length > 0) {
+        currentTrack.lyrics = res.lyrics;
+        setResolvedPreviewLyrics(res.lyrics);
+        setPreviewInstrumental(false);
+      } else {
+        setResolvedPreviewLyrics([]);
+        setPreviewInstrumental(res.isInstrumental);
+      }
+    });
   }, [currentTrack?.id]);
 
   if (!expandedPlayerOpen || !currentTrack) return null;
@@ -541,7 +548,7 @@ export const ExpandedPlayer: React.FC = () => {
               })
             ) : (
               <div className="py-4 text-center text-xs text-white/50 animate-pulse">
-                Chargement des paroles synchronisées...
+                {previewInstrumental ? 'Titre instrumental • Aucune parole vocale' : 'Chargement des paroles synchronisées...'}
               </div>
             )}
           </div>

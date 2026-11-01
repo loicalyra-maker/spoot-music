@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 
 const streamCache = new Map<string, string>();
 const vaultCache = new Map<string, any[]>();
+const neteaseLyricsCache = new Map<string, string>();
 
 function ytDlpStreamResolver(): Plugin {
   return {
@@ -38,7 +39,6 @@ function ytDlpStreamResolver(): Plugin {
           { timeout: 12000 },
           (err, stdout) => {
             if (err || !stdout?.trim()) {
-              // Fallback vers API YouTube (garantit le fonctionnement universel sans Python)
               fetch('https://www.youtube.com/youtubei/v1/search', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -129,7 +129,7 @@ function ytDlpStreamResolver(): Plugin {
         );
       });
 
-      // 2. Endpoint de résolution de flux YouTube Music / yt-dlp
+      // 2. Endpoint de résolution de flux YouTube Music / yt-dlp (AAC-LC / M4A matériel A18 Pro)
       server.middlewares.use('/api/stream-resolve', (req, res) => {
         const url = new URL(req.url || '', `http://${req.headers.host}`);
         const id = url.searchParams.get('id');
@@ -179,6 +179,70 @@ function ytDlpStreamResolver(): Plugin {
         );
       });
 
+      // 3. Proxy NetEase Cloud Music LRC (Niveau 2 du moteur de paroles synchronisées)
+      server.middlewares.use('/api/lyrics-netease', async (req, res) => {
+        const url = new URL(req.url || '', `http://${req.headers.host}`);
+        const q = url.searchParams.get('q');
+        res.setHeader('Content-Type', 'application/json');
+
+        if (!q) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ lrc: null }));
+          return;
+        }
+
+        const key = q.trim().toLowerCase();
+        if (neteaseLyricsCache.has(key)) {
+          res.end(JSON.stringify({ lrc: neteaseLyricsCache.get(key) }));
+          return;
+        }
+
+        try {
+          const searchResp = await fetch('https://music.163.com/api/search/get', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Referer': 'https://music.163.com/',
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            },
+            body: `s=${encodeURIComponent(q)}&type=1&offset=0&total=true&limit=5`,
+          });
+          const searchData = await searchResp.json();
+          const songs = searchData?.result?.songs || [];
+          if (!songs.length) {
+            res.end(JSON.stringify({ lrc: null }));
+            return;
+          }
+
+          let bestLrc: string | null = null;
+          for (const song of songs.slice(0, 3)) {
+            const lyricResp = await fetch(
+              `https://music.163.com/api/song/lyric?os=pc&id=${song.id}&lv=-1&kv=-1&tv=-1`,
+              {
+                headers: {
+                  'Referer': 'https://music.163.com/',
+                  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                },
+              }
+            );
+            const lyricData = await lyricResp.json();
+            const candidate = lyricData?.lrc?.lyric || null;
+            if (candidate && candidate.split('\n').length >= 6) {
+              bestLrc = candidate;
+              break;
+            }
+          }
+
+          if (bestLrc) {
+            neteaseLyricsCache.set(key, bestLrc);
+          }
+          res.end(JSON.stringify({ lrc: bestLrc }));
+        } catch {
+          res.end(JSON.stringify({ lrc: null }));
+        }
+      });
+
+      // 4. Proxy audio avec support HTTP Range & Cache-Control Burst & Sleep
       server.middlewares.use('/api/stream-audio', async (req, res) => {
         if (req.method === 'OPTIONS') {
           res.statusCode = 204;
@@ -210,6 +274,7 @@ function ytDlpStreamResolver(): Plugin {
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
           res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Content-Type');
+          res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
 
           if (upstreamRes.headers.get('content-type')) {
             res.setHeader('Content-Type', upstreamRes.headers.get('content-type')!);

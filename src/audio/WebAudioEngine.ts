@@ -1,10 +1,14 @@
 // Spoot Music — Real-Time Stream & Web Audio DSP Engine
 // Connecte l'élément audio natif au graphe DSP Web Audio (Égaliseur 10 bandes, Limiteur, Karaoké)
 // Résolution de flux audio intégral (yt-dlp Direct / ProMotion 120 FPS / Zéro coupure à 30 secondes)
+// Intègre PowerManager (Zéro CPU en veille), StreamBufferPolicy (Burst & Sleep A18 Pro) & MediaSessionBridge (Dynamic Island)
 
 import { Track } from '../types';
 import { musicApi } from '../services/musicApi';
 import { streamResolver } from '../services/StreamResolverService';
+import { powerManager } from '../services/PowerManager';
+import { streamBufferPolicy } from '../services/StreamBufferPolicy';
+import { mediaSessionBridge } from '../services/MediaSessionBridge';
 
 export const EQ_FREQUENCIES = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
 
@@ -27,7 +31,7 @@ export class WebAudioEngine {
   private onTrackEndedCallback: (() => void) | null = null;
   private onPositionUpdateCallback: ((posMs: number, durMs: number) => void) | null = null;
 
-  // Horloge temporelle avec synchronisation ProMotion
+  // Horloge temporelle avec synchronisation ProMotion & mise en veille en arrière-plan
   private virtualPositionMs: number = 0;
   private lastTickTime: number = 0;
   private tickerTimer: any = null;
@@ -37,7 +41,25 @@ export class WebAudioEngine {
     if (typeof window !== 'undefined') {
       this.audioEl = new Audio();
       this.audioEl.crossOrigin = 'anonymous';
-      this.audioEl.preload = 'metadata';
+      streamBufferPolicy.configureAudioElement(this.audioEl);
+
+      // Cycle de vie arrière-plan (A18 Pro Zéro CPU) :
+      // Lorsque l'écran est verrouillé ou l'app est en arrière-plan, on coupe le timer UI
+      // tandis que le flux audio natif OS continue sans aucune charge JS.
+      powerManager.subscribe((isSuspended) => {
+        if (isSuspended) {
+          this.stopTicker();
+        } else if (!this.isPaused && this.currentTrack) {
+          if (this.audioEl && !isNaN(this.audioEl.currentTime) && this.audioEl.currentTime > 0) {
+            const trackDurMs = this.currentTrack.durationMs || 180000;
+            this.virtualPositionMs = Math.min(trackDurMs, this.audioEl.currentTime * 1000);
+            if (this.onPositionUpdateCallback) {
+              this.onPositionUpdateCallback(this.virtualPositionMs, trackDurMs);
+            }
+          }
+          this.startTicker();
+        }
+      });
 
       this.audioEl.addEventListener('loadedmetadata', () => {
         if (this.pendingSeekSec !== null && this.audioEl) {
@@ -104,6 +126,7 @@ export class WebAudioEngine {
 
   private startTicker() {
     this.stopTicker();
+    if (powerManager.isSuspended()) return;
     this.lastTickTime = performance.now();
     this.tickerTimer = setInterval(() => {
       this.tick();
@@ -118,7 +141,7 @@ export class WebAudioEngine {
   }
 
   private tick() {
-    if (this.isPaused || !this.currentTrack || this.isSeeking) return;
+    if (this.isPaused || !this.currentTrack || this.isSeeking || powerManager.isSuspended()) return;
 
     const trackDurMs = this.currentTrack.durationMs || 180000;
 
@@ -135,6 +158,8 @@ export class WebAudioEngine {
     if (this.onPositionUpdateCallback) {
       this.onPositionUpdateCallback(this.virtualPositionMs, trackDurMs);
     }
+
+    mediaSessionBridge.updatePositionState(this.virtualPositionMs, trackDurMs);
 
     if (this.virtualPositionMs >= trackDurMs) {
       this.stopTicker();
@@ -219,6 +244,9 @@ export class WebAudioEngine {
     this.virtualPositionMs = startPositionMs;
     this.startTicker();
 
+    mediaSessionBridge.updateMetadata(track);
+    mediaSessionBridge.updatePlaybackState('playing');
+
     // Résolution audio intégrale obligatoire (élimine les previews tronqués à 30s)
     let streamUrl = track.streamUrl;
     if (!streamUrl || streamResolver.is30sPreview(streamUrl)) {
@@ -247,13 +275,11 @@ export class WebAudioEngine {
       } catch {}
       this.audioEl.src = streamUrl;
       this.pendingSeekSec = startPositionMs > 0 ? (startPositionMs / 1000.0) : null;
-      try {
-        this.audioEl.currentTime = 0;
-      } catch {}
       const trackDurMs = track.durationMs || 180000;
       if (this.onPositionUpdateCallback) {
         this.onPositionUpdateCallback(startPositionMs, trackDurMs);
       }
+      mediaSessionBridge.updatePositionState(startPositionMs, trackDurMs, true);
 
       try {
         await this.audioEl.play();
@@ -268,6 +294,7 @@ export class WebAudioEngine {
     this.isPaused = true;
     this.stopTicker();
     this.audioEl.pause();
+    mediaSessionBridge.updatePlaybackState('paused');
   }
 
   public resume() {
@@ -276,6 +303,7 @@ export class WebAudioEngine {
     this.initDspChainIfNeeded();
     this.startTicker();
     this.audioEl.play().catch(e => console.warn('Resume error:', e));
+    mediaSessionBridge.updatePlaybackState('playing');
   }
 
   /**
@@ -311,6 +339,7 @@ export class WebAudioEngine {
     if (this.onPositionUpdateCallback) {
       this.onPositionUpdateCallback(this.virtualPositionMs, trackDurMs);
     }
+    mediaSessionBridge.updatePositionState(this.virtualPositionMs, trackDurMs, true);
 
     setTimeout(() => {
       this.isSeeking = false;
@@ -366,6 +395,10 @@ export class WebAudioEngine {
 
   public getDurationMs(): number {
     return this.currentTrack?.durationMs || 180000;
+  }
+
+  public isCurrentlyPlaying(): boolean {
+    return !this.isPaused;
   }
 
   public switchLookaheadInstant(nextTrack: Track): number {

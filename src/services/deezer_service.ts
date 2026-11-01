@@ -1205,14 +1205,7 @@ export class DeezerService {
       } catch {}
     }
 
-    const fallbackLyrics: LyricLine[] = [
-      { timeMs: 0, text: `Écoute de ${trackTitle}` },
-      { timeMs: 4000, text: `Interprété par ${artistName}` },
-      { timeMs: 8000, text: 'Diffusion en qualité Hi-Res Lossless 24-bit' },
-      { timeMs: 12000, text: 'All your music. Zero noise. Spoot it.' },
-    ];
-    this.lyricsCache.set(cacheKey, fallbackLyrics);
-    return { lyrics: fallbackLyrics, isInstrumental: false };
+    return { lyrics: [], isInstrumental: true };
   }
 
   private parseLrc(lrcText: string): LyricLine[] {

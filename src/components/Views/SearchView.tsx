@@ -12,6 +12,7 @@ import { spotifyApi, SpotifySearchResult } from '../../services/spotify_api';
 import { deezerService, DeezerPodcast } from '../../services/deezer_service';
 import { Track, PodcastEpisode } from '../../types';
 import { SPOTIFY_BROWSE_CATEGORIES, BrowseCategory } from '../../data/categories_data';
+import { SnippetPreviewButton } from '../Common/SnippetPreviewButton';
 
 export const SearchView: React.FC = () => {
   const {
@@ -451,13 +452,14 @@ export const SearchView: React.FC = () => {
                           </p>
                           <p className="text-xs text-[#b3b3b3] truncate">{track.artistName}</p>
                         </div>
-                        <span className="text-xs text-[#b3b3b3]">{formatDuration(track.durationMs)}</span>
+                        <SnippetPreviewButton track={track} variant="pill" />
+                        <span className="text-xs text-[#b3b3b3] hidden sm:inline">{formatDuration(track.durationMs)}</span>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             toggleFavorite(track.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 text-[#b3b3b3] hover:text-white p-1"
+                          className="text-[#b3b3b3] hover:text-white p-1"
                         >
                           <Plus className="w-4 h-4" />
                         </button>
@@ -485,7 +487,10 @@ export const SearchView: React.FC = () => {
                           <p className="text-xs text-[#b3b3b3] truncate">{track.artistName}</p>
                         </div>
                       </div>
-                      <span className="text-xs text-[#b3b3b3]">{formatDuration(track.durationMs)}</span>
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        <SnippetPreviewButton track={track} variant="pill" />
+                        <span className="text-xs text-[#b3b3b3]">{formatDuration(track.durationMs)}</span>
+                      </div>
                     </div>
                   ))}
                 </div>

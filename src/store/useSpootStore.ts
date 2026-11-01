@@ -21,6 +21,9 @@ import { streamResolver } from '../services/StreamResolverService';
 import { musicApi, RealPodcast } from '../services/musicApi';
 import { spotifyApi } from '../services/spotify_api';
 import { deezerService } from '../services/deezer_service';
+import { lyricsService } from '../services/lyrics_service';
+import { mediaSessionBridge } from '../services/MediaSessionBridge';
+import { streamBufferPolicy } from '../services/StreamBufferPolicy';
 
 interface SpootState {
   // Navigation & Vues
@@ -227,6 +230,19 @@ export const useSpootStore = create<SpootState>((set, get) => {
   // Synchronisation temporelle ProMotion 120Hz haute précision
   audioCore.setOnPositionUpdate((posMs, durMs) => {
     set({ positionMs: posMs, durationMs: durMs });
+  });
+
+  // Pont natif Écran Verrouillé / Dynamic Island (MPNowPlayingInfoCenter)
+  mediaSessionBridge.initHandlers({
+    onPlay: () => {
+      if (get().playbackStatus !== 'Playing') get().togglePlayPause();
+    },
+    onPause: () => {
+      if (get().playbackStatus === 'Playing') get().togglePlayPause();
+    },
+    onPreviousTrack: () => get().previousTrack(),
+    onNextTrack: () => get().nextTrack(),
+    onSeekTo: (posMs) => get().seek(posMs),
   });
 
   return {
@@ -463,9 +479,9 @@ export const useSpootStore = create<SpootState>((set, get) => {
 
       audioCore.playTrack(track, 0);
 
-      // Charge automatiquement les vraies paroles synchronisées LRCLIB (avec fallback universel)
+      // Charge automatiquement les paroles via le moteur universel 3 niveaux (LRCLIB -> NetEase LRC -> Instrumental)
       if (!track.lyrics || track.lyrics.length === 0) {
-        deezerService.getSyncedLyrics(track.artistName, track.title, track.durationMs).then((result) => {
+        lyricsService.getSyncedLyrics(track.artistName, track.title, track.durationMs).then((result) => {
           if (result.isInstrumental) {
             track.isInstrumental = true;
             if (get().currentTrack?.id === track.id) {
@@ -481,11 +497,15 @@ export const useSpootStore = create<SpootState>((set, get) => {
         });
       }
 
-      // Prépare le lookahead (3 pistes suivantes)
+      // Prépare le lookahead (3 pistes suivantes) & préchargement Burst & Sleep (piste N+1)
       const nextTracks: string[] = [];
       for (let i = 1; i <= 3; i++) {
         const nextIdx = (idx + i) % queue.length;
         if (queue[nextIdx]) nextTracks.push(queue[nextIdx].id);
+      }
+      const immediateNext = queue[(idx + 1) % queue.length];
+      if (immediateNext && immediateNext.id !== track.id) {
+        streamBufferPolicy.burstPreloadNextTrack(immediateNext);
       }
 
       // Historique d'écoute

@@ -13,6 +13,7 @@ import { Track } from '../../types';
 import { PlaylistOptionsMenu } from '../Playlist/PlaylistOptionsMenu';
 import { EditPlaylistModal } from '../Playlist/EditPlaylistModal';
 import { DeletePlaylistModal } from '../Playlist/DeletePlaylistModal';
+import { SnippetPreviewButton } from '../Common/SnippetPreviewButton';
 
 type SortField = 'custom' | 'title' | 'artist' | 'album' | 'date' | 'duration';
 type SortOrder = 'asc' | 'desc';
@@ -678,8 +679,9 @@ export const PlaylistView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs font-mono text-[#727272]">{formatDuration(track.durationMs)}</span>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <SnippetPreviewButton track={track} variant="pill" />
+                  <span className="text-xs font-mono text-[#727272] hidden sm:inline">{formatDuration(track.durationMs)}</span>
                   <button
                     onClick={() => handleAddTrack(track)}
                     className="px-4 py-1.5 rounded-full border border-[#727272] hover:border-white text-xs font-bold text-white hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 bg-[#242424] hover:bg-white hover:text-black"
@@ -729,8 +731,9 @@ export const PlaylistView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-xs font-mono text-[#727272]">{formatDuration(track.durationMs)}</span>
+              <div className="flex items-center gap-2.5 shrink-0">
+                <SnippetPreviewButton track={track} variant="pill" />
+                <span className="text-xs font-mono text-[#727272] hidden sm:inline">{formatDuration(track.durationMs)}</span>
                 <button
                   onClick={() => handleAddTrack(track)}
                   className="px-4 py-1.5 rounded-full border border-[#727272] hover:border-white text-xs font-bold text-white hover:scale-105 active:scale-95 transition-all flex items-center gap-1.5 bg-[#242424] hover:bg-white hover:text-black"
