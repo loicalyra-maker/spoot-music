@@ -75,6 +75,7 @@ export const ExpandedPlayer: React.FC = () => {
 
   useEffect(() => {
     if (!currentTrack) return;
+    setImageError(false);
     setPreviewInstrumental(false);
     lyricsService.getSyncedLyrics(currentTrack.artistName, currentTrack.title, durationMs || currentTrack.durationMs).then((res) => {
       if (res.lyrics && res.lyrics.length > 0) {
@@ -173,10 +174,8 @@ export const ExpandedPlayer: React.FC = () => {
   const rawCover = (!imageError && currentTrack.coverUrl) ? currentTrack.coverUrl : fallbackCover;
   const highResCoverSrc = rawCover
     ? rawCover
-        .replace(/\/\d+x\d+(-[a-f0-9]+)?/g, '/1000x1000')
-        .replace(/100x100bb/g, '1000x1000bb')
-        .replace(/250x250bb/g, '1000x1000bb')
-        .replace(/500x500bb/g, '1000x1000bb')
+        .replace(/\/\d+x\d+-/g, '/1000x1000-')
+        .replace(/\d+x\d+bb/g, '1000x1000bb')
     : fallbackCover;
 
   return (
