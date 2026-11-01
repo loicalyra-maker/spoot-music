@@ -280,6 +280,7 @@ export const ExpandedPlayer: React.FC = () => {
               <button
                 onClick={() => {
                   setOptionsMenuOpen(false);
+                  setExpandedPlayerOpen(false);
                   setLyricsOpen(true);
                 }}
                 className="w-full flex items-center gap-3 p-3 rounded-2xl bg-white/[0.04] hover:bg-white/[0.08] text-white text-xs font-bold text-left transition-colors"
@@ -550,6 +551,7 @@ export const ExpandedPlayer: React.FC = () => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                setExpandedPlayerOpen(false);
                 setLyricsOpen(true);
               }}
               className="text-xs text-white/70 hover:text-white font-semibold flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/15 transition-all"
