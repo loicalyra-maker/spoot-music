@@ -196,7 +196,6 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
       }
     }
 
-    const fallbackCover = useThemeStore.getState().defaultCoverUrl || '/default-cover.jpg';
     const playableTrack: Track = {
       id: `vt-${vt.id}`,
       isrc: `VAULT-${vt.id}`,
@@ -205,8 +204,8 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
       artistName: vt.artistName || artistName,
       albumId: 'vault',
       albumTitle: 'Archives & Leaks (Exclusivité Spoot • yt-dlp Live)',
-      coverUrl: vt.coverUrl || fallbackCover,
-      isUnreleased: true,
+      coverUrl: vt.coverUrl || '',
+      isUnreleased: false,
       streamUrl: streamToUse || '',
       durationMs: vt.durationMs || 210000,
       sampleRate: 48000,

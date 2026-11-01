@@ -1118,20 +1118,24 @@ export class DeezerService {
         { id: 'tia-vault-4', title: 'Mode Avion (Inédit Studio Session)', durationFormatted: '2:52', durationMs: 172000, viewCount: 450000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/af056d5fa6167cfd1917dc0e08c11083/1000x1000-000000-80-0-0.jpg' }
       ],
       'gazo': [
-        { id: 'gz-vault-1', title: 'Drill FR (Maquette Studio Exclusive)', durationFormatted: '3:10', durationMs: 190000, viewCount: 680000 },
-        { id: 'gz-vault-2', title: 'K-Maro (Unreleased Leak 2024)', durationFormatted: '2:45', durationMs: 165000, viewCount: 590000 }
+        { id: 'gz-vault-1', title: 'Drill FR (Maquette Studio Exclusive)', durationFormatted: '3:10', durationMs: 190000, viewCount: 680000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/b2b733bcba4287d5ceca0ee7fa0d13dc/1000x1000-000000-80-0-0.jpg' },
+        { id: 'gz-vault-2', title: 'K-Maro (Unreleased Leak 2024)', durationFormatted: '2:45', durationMs: 165000, viewCount: 590000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/b2b733bcba4287d5ceca0ee7fa0d13dc/1000x1000-000000-80-0-0.jpg' }
       ],
       'ninho': [
-        { id: 'ni-vault-1', title: 'M.I.L.S 4 Intro (Maquette Studio Inédite)', durationFormatted: '3:25', durationMs: 205000, viewCount: 820000 },
-        { id: 'ni-vault-2', title: 'VVS (Unreleased Demo Leak)', durationFormatted: '2:55', durationMs: 175000, viewCount: 710000 }
+        { id: 'ni-vault-1', title: 'M.I.L.S 4 Intro (Maquette Studio Inédite)', durationFormatted: '3:25', durationMs: 205000, viewCount: 820000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/11a510f274cb7eb2e31df5dbefad7118/1000x1000-000000-80-0-0.jpg' },
+        { id: 'ni-vault-2', title: 'VVS (Unreleased Demo Leak)', durationFormatted: '2:55', durationMs: 175000, viewCount: 710000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/11a510f274cb7eb2e31df5dbefad7118/1000x1000-000000-80-0-0.jpg' }
       ],
       'vacra': [
-        { id: 'vac-vault-1', title: 'Tiki Taka (Acoustic Session Inédite)', durationFormatted: '3:15', durationMs: 195000, viewCount: 380000 },
-        { id: 'vac-vault-2', title: 'Plan B (Démo Studio Archive)', durationFormatted: '2:50', durationMs: 170000, viewCount: 290000 }
+        { id: 'vac-vault-1', title: 'Tiki Taka (Acoustic Session Inédite)', durationFormatted: '3:15', durationMs: 195000, viewCount: 380000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/86d638ba235889ee7ae99eb03157ba3b/1000x1000-000000-80-0-0.jpg' },
+        { id: 'vac-vault-2', title: 'Plan B (Démo Studio Archive)', durationFormatted: '2:50', durationMs: 170000, viewCount: 290000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/86d638ba235889ee7ae99eb03157ba3b/1000x1000-000000-80-0-0.jpg' }
+      ],
+      'tayc': [
+        { id: 'tayc-vault-1', title: 'Room 69 (Acoustic Session)', durationFormatted: '3:20', durationMs: 200000, viewCount: 520000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/0e0085a6fcde7b3d3957eb0a7c413b5a/1000x1000-000000-80-0-0.jpg' },
+        { id: 'tayc-vault-2', title: "N'y pense plus (Piano Live Session)", durationFormatted: '3:45', durationMs: 225000, viewCount: 890000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/0e0085a6fcde7b3d3957eb0a7c413b5a/1000x1000-000000-80-0-0.jpg' }
       ],
       'yoasobi': [
-        { id: 'yoa-vault-1', title: '夜に駆ける (The First Take Studio Master Unreleased)', durationFormatted: '4:15', durationMs: 255000, viewCount: 1200000 },
-        { id: 'yoa-vault-2', title: 'Gunjo (Acoustic Piano Session)', durationFormatted: '3:50', durationMs: 230000, viewCount: 950000 }
+        { id: 'yoa-vault-1', title: '夜に駆ける (The First Take Studio Master Unreleased)', durationFormatted: '4:15', durationMs: 255000, viewCount: 1200000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/c028acc15f911c6ca3ff821abbb64aa3/1000x1000-000000-80-0-0.jpg' },
+        { id: 'yoa-vault-2', title: 'Gunjo (Acoustic Piano Session)', durationFormatted: '3:50', durationMs: 230000, viewCount: 950000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/c028acc15f911c6ca3ff821abbb64aa3/1000x1000-000000-80-0-0.jpg' }
       ]
     };
 
@@ -1141,10 +1145,8 @@ export class DeezerService {
       }
     }
 
-    return [
-      { id: `${clean}-vault-1`, title: `${artistName} — Session Studio Exclusive 2024`, durationFormatted: '3:10', durationMs: 190000, viewCount: 320000, artistName },
-      { id: `${clean}-vault-2`, title: `${artistName} — Démo Inédite (Spoot Vault Leak)`, durationFormatted: '2:45', durationMs: 165000, viewCount: 280000, artistName }
-    ];
+    // Aucun titre fantôme généré pour éviter les fausses informations et pochettes non désirées
+    return [];
   }
 
   /**

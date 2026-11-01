@@ -44,6 +44,7 @@ export const ExpandedPlayer: React.FC = () => {
   const [creditsExpanded, setCreditsExpanded] = useState(false);
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
+  const [displayMode, setDisplayMode] = useState<'immersive' | 'square'>('immersive');
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragPositionMs, setDragPositionMs] = useState(0);
@@ -185,37 +186,35 @@ export const ExpandedPlayer: React.FC = () => {
         backgroundColor: '#0a0a0c',
       }}
     >
-      {/* 0. FULL-BLEED CANVAS LAYER (Video if available or Ambient Glow Layer) */}
+      {/* 0. IMMERSIVE CANVAS / ARTWORK BACKGROUND (Style Spotify Mobile Canvas HD - 0 Flou) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         {currentTrack.canvasUrl ? (
-          <>
-            <video
-              autoPlay
-              loop
-              muted
-              playsInline
-              src={currentTrack.canvasUrl}
-              className="w-full h-full object-cover"
-            />
-            {/* Ombre supérieure douce sous la barre de navigation */}
-            <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-black/85 via-black/45 to-transparent" />
-            {/* Fondu inférieur progressif vers le noir pour les contrôles et paroles */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/90 via-42% to-transparent" />
-          </>
-        ) : (
-          <>
-            {/* Aura d'ambiance liquide ultra-douce projetée par les couleurs de la pochette HD */}
-            <img
-              src={highResCoverSrc}
-              alt=""
-              onError={() => setImageError(true)}
-              referrerPolicy="no-referrer"
-              crossOrigin="anonymous"
-              className="w-full h-full object-cover scale-125 blur-3xl opacity-35 transition-all duration-700"
-            />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-[#0a0a0c]" />
-          </>
-        )}
+          <video
+            autoPlay
+            loop
+            muted
+            playsInline
+            src={currentTrack.canvasUrl}
+            className="w-full h-full object-cover"
+          />
+        ) : highResCoverSrc ? (
+          <img
+            src={highResCoverSrc}
+            alt=""
+            onError={() => setImageError(true)}
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
+            className={`w-full h-full object-cover object-center transition-all duration-700 ${
+              displayMode === 'immersive' ? 'opacity-95 scale-100' : 'opacity-40 scale-110 blur-2xl'
+            }`}
+          />
+        ) : null}
+
+        {/* Dégradé supérieur pour lisibilité de la barre supérieure */}
+        <div className="absolute top-0 inset-x-0 h-44 bg-gradient-to-b from-black/85 via-black/35 to-transparent pointer-events-none" />
+
+        {/* Dégradé inférieur progressif pour intégration naturelle des commandes et des paroles */}
+        <div className="absolute inset-x-0 bottom-0 h-[65%] bg-gradient-to-t from-[#0a0a0c] via-[#0a0a0c]/85 via-45% to-transparent pointer-events-none" />
       </div>
 
       {/* 1. TOP HEADER (Chevron Down, Artist Name in clean uppercase tracking, More Options) */}
@@ -320,8 +319,12 @@ export const ExpandedPlayer: React.FC = () => {
       )}
 
       {/* 2. MAIN ARTWORK / CANVAS DISPLAY (Adapté iPhone 16 Pro Max 430x932 & Haute Définition) */}
-      <div className="w-full max-w-md mx-auto flex-1 min-h-[32vh] sm:min-h-[38vh] relative z-10 flex items-center justify-center px-6 py-2">
-        {!currentTrack.canvasUrl && (
+      <div
+        onClick={() => setDisplayMode(displayMode === 'immersive' ? 'square' : 'immersive')}
+        className="w-full max-w-md mx-auto flex-1 min-h-[28vh] sm:min-h-[36vh] relative z-10 flex items-center justify-center px-6 py-2 cursor-pointer"
+        title="Appuyez pour basculer entre mode Canvas Plein Écran et Pochette Carrée"
+      >
+        {displayMode === 'square' && !currentTrack.canvasUrl && (
           <div className="relative aspect-square w-[76vw] max-w-[340px] rounded-3xl overflow-hidden shadow-[0_24px_70px_rgba(0,0,0,0.85)] border border-white/10 group animate-in zoom-in-95 duration-200">
             <ImageWithFallback
               src={highResCoverSrc}
