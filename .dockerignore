@@ -1,0 +1,8 @@
+node_modules
+.git
+.vercel
+dist
+*.log
+.playwright-mcp
+.temp_ipa
+SpootMusic.ipa
