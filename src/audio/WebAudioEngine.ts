@@ -1,3 +1,4 @@
+import { ytIframeBridge } from './YouTubeIframeBridge';
 // Spoot Music — Real-Time Stream & Web Audio DSP Engine
 // Connecte l'élément audio natif au graphe DSP Web Audio (Égaliseur 10 bandes, Limiteur, Karaoké)
 // Résolution de flux audio intégral (yt-dlp Direct / ProMotion 120 FPS / Zéro coupure à 30 secondes)
@@ -46,6 +47,14 @@ export class WebAudioEngine {
       // Cycle de vie arrière-plan (A18 Pro Zéro CPU) :
       // Lorsque l'écran est verrouillé ou l'app est en arrière-plan, on coupe le timer UI
       // tandis que le flux audio natif OS continue sans aucune charge JS.
+      ytIframeBridge.setCallbacks(
+        () => {
+          this.stopTicker();
+          if (this.onTrackEndedCallback) this.onTrackEndedCallback();
+        },
+        () => {}
+      );
+
       powerManager.subscribe((isSuspended) => {
         if (isSuspended) {
           this.stopTicker();
@@ -140,7 +149,11 @@ export class WebAudioEngine {
             await this.audioEl.play();
           }
         } catch (recoveryErr) {
-          console.warn('[WebAudioEngine] Récupération de secours échouée:', recoveryErr);
+          console.warn('[WebAudioEngine] Récupération de secours échouée, activation pont YouTube IFrame:', recoveryErr);
+          const ytId = (this.currentTrack as any)?.youtubeId;
+          if (ytId) {
+            await ytIframeBridge.play(ytId, this.virtualPositionMs / 1000);
+          }
         }
       });
     }
@@ -178,8 +191,13 @@ export class WebAudioEngine {
 
     const trackDurMs = this.currentTrack.durationMs || 180000;
 
-    // Si l'élément audio HTML5 lit activement, synchronisation 1:1 exacte
-    if (this.audioEl && !isNaN(this.audioEl.currentTime) && this.audioEl.currentTime > 0) {
+    // Si le pont IFrame ou HTML5 audio lit activement, synchronisation 1:1 exacte
+    if (ytIframeBridge.isActive()) {
+      const ytSec = ytIframeBridge.getCurrentTime();
+      if (ytSec > 0) {
+        this.virtualPositionMs = Math.min(trackDurMs, ytSec * 1000);
+      }
+    } else if (this.audioEl && !isNaN(this.audioEl.currentTime) && this.audioEl.currentTime > 0) {
       this.virtualPositionMs = Math.min(trackDurMs, this.audioEl.currentTime * 1000);
     } else {
       const now = performance.now();
@@ -280,6 +298,8 @@ export class WebAudioEngine {
     mediaSessionBridge.updateMetadata(track);
     mediaSessionBridge.updatePlaybackState('playing');
 
+    ytIframeBridge.stop();
+
     // Résolution audio intégrale intelligente et sécurisée (zéro régression)
     const initialStreamUrl = track.streamUrl;
     let streamUrl = track.streamUrl;
@@ -336,12 +356,17 @@ export class WebAudioEngine {
       try {
         await this.audioEl.play();
       } catch (err) {
-        console.warn('Audio play request interrupted or requires user gesture:', err);
+        console.warn('Audio play request interrupted, tentative relais YouTube IFrame:', err);
+        const ytId = (track as any).youtubeId;
+        if (ytId) {
+          await ytIframeBridge.play(ytId, startPositionMs / 1000);
+        }
       }
     }
   }
 
   public pause() {
+    if (ytIframeBridge.isActive()) ytIframeBridge.pause();
     if (!this.audioEl) return;
     this.isPaused = true;
     this.stopTicker();
@@ -350,6 +375,7 @@ export class WebAudioEngine {
   }
 
   public resume() {
+    if (ytIframeBridge.isActive()) ytIframeBridge.resume();
     if (!this.audioEl) return;
     this.isPaused = false;
     this.initDspChainIfNeeded();
@@ -362,6 +388,7 @@ export class WebAudioEngine {
    * Navigation temporelle directe 1:1 sans approximation
    */
   public seek(positionMs: number) {
+    if (ytIframeBridge.isActive()) ytIframeBridge.seek(positionMs / 1000);
     if (!this.audioEl || !this.currentTrack) return;
     this.isSeeking = true;
     const trackDurMs = this.currentTrack.durationMs || 180000;

@@ -269,25 +269,30 @@ const server = http.createServer(async (req, res) => {
       ? `https://www.youtube.com/watch?v=${id}`
       : `ytsearch1:${(q || '').includes('Official Audio') ? q : `${q} Official Audio`}`;
 
-    // Tentative 1 : Exécution directe de yt-dlp Python avec player_client android,web
+    // Tentative 1 : Exécution directe de yt-dlp Python avec PO Token provider et JS engine
     execFile(
       PYTHON_BIN,
       [
         '-m',
         'yt_dlp',
         '--no-warnings',
-        '--extractor-args',
-        'youtube:player_client=android,web',
+        '--js-runtimes',
+        'node:/usr/local/bin/node',
         '-g',
+        '--print',
+        'urls',
+        '--print',
+        'id',
         '-f',
-        ytdlpFormat,
+        '140/bestaudio[ext=m4a]/bestaudio/best',
         '--no-playlist',
         ytTarget,
       ],
       { timeout: 15000 },
       async (err, stdout) => {
-        const lines = (stdout || '').split(/\r?\n/).map((l) => l.trim()).filter((l) => l.startsWith('http'));
-        let streamUrl = lines[0];
+        const rawLines = (stdout || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        const streamUrl = rawLines.find((l) => l.startsWith('http'));
+        const resolvedYtId = rawLines.find((l) => !l.startsWith('http') && l.length >= 10 && l.length <= 15) || id;
 
         if (streamUrl) {
           const proxiedUrl = streamUrl.includes('googlevideo.com')
@@ -296,6 +301,7 @@ const server = http.createServer(async (req, res) => {
 
           const payload = {
             url: proxiedUrl,
+            youtubeId: resolvedYtId,
             format: formatLabel,
             codec: detectedCodec,
             bitrateKbps: estimatedBitrate,

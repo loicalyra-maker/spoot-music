@@ -2,12 +2,13 @@
 # Runs 24/7 on Render / Koyeb / Railway / Docker without needing a local PC.
 FROM node:22-alpine
 
-# Install Python 3, pip, ffmpeg, git and curl + create symlink python -> python3
+# Install Python 3, pip, ffmpeg, git, curl + symlinks
 RUN apk add --no-cache python3 py3-pip ffmpeg git curl \
-    && ln -sf /usr/bin/python3 /usr/bin/python
+    && ln -sf /usr/bin/python3 /usr/bin/python \
+    && ln -sf /usr/local/bin/node /usr/bin/node
 
-# Install yt-dlp (up-to-date with latest YouTube deciphers)
-RUN pip install --no-cache-dir --break-system-packages -U yt-dlp
+# Install yt-dlp + PO token provider plugin for bot bypass
+RUN pip install --no-cache-dir --break-system-packages -U yt-dlp bgutil-ytdlp-pot-provider
 
 WORKDIR /app
 
