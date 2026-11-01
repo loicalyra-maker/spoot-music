@@ -30,6 +30,9 @@ export interface ThemeConfig {
   themeMode: ThemeMode;
   colorPreset: ColorPreset;
   customColor: string;
+  playerBarColor: string | null;     // Couleur personnalisée pour la barre de lecture / mini-player (null = auto)
+  defaultCoverUrl: string;           // Image récurrente / fallback de couverture par défaut
+  backgroundBlur: number;            // Flou d'ambiance du fond (0px à 25px)
   backgroundStyle: BackgroundStyle;
   playerMode: PlayerMode;
   sidebarMode: SidebarMode;
@@ -53,7 +56,6 @@ interface ThemeState extends ThemeConfig {
   // Legacy aliases
   backgroundType: BackgroundType;
   playerSize: PlayerSize;
-  backgroundBlur: number;
 
   // Tiroir de personnalisation
   isCustomizerOpen: boolean;
@@ -64,6 +66,9 @@ interface ThemeState extends ThemeConfig {
   applyFullConfig: (config: Partial<ThemeConfig>) => void;
   setColorPreset: (preset: ColorPreset) => void;
   setCustomColor: (color: string) => void;
+  setPlayerBarColor: (color: string | null) => void;
+  setDefaultCoverUrl: (url: string) => void;
+  setBackgroundBlur: (blur: number) => void;
   setBackgroundStyle: (style: BackgroundStyle) => void;
   setPlayerMode: (mode: PlayerMode) => void;
   setSidebarMode: (mode: SidebarMode) => void;
@@ -91,7 +96,6 @@ interface ThemeState extends ThemeConfig {
   toggleThemeMode: () => void;
   setBackgroundType: (type: BackgroundType) => void;
   setPlayerSize: (size: PlayerSize) => void;
-  setBackgroundBlur: (blur: number) => void;
   reorderSections: (sections: HomeSectionConfig[]) => void;
 }
 
@@ -270,6 +274,16 @@ export const applyThemeToDOM = (state: Partial<ThemeConfig>) => {
   root.style.setProperty('--accent-base-bg', colors.baseBg);
   root.style.setProperty('--glass-reflet', `linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, ${colors.glow} 45%, transparent 70%)`);
   root.setAttribute('data-color-preset', preset);
+
+  // Variable de couleur dédiée pour la barre de lecture / mini-player
+  const barColor = state.playerBarColor || colors.primary;
+  root.style.setProperty('--player-bar-color', barColor);
+  root.style.setProperty('--player-bar-rgb', hexToRgb(barColor));
+
+  // Variable de flou d'ambiance d'arrière-plan
+  const blurVal = state.backgroundBlur ?? 0;
+  root.style.setProperty('--background-blur-val', `${blurVal}px`);
+
   if (state.backgroundImageUrl) {
     root.setAttribute('data-has-custom-wallpaper', 'true');
   } else {
@@ -304,6 +318,9 @@ const DEFAULT_CONFIG: ThemeConfig = {
   themeMode: initialSaved.themeMode ?? 'liquid-glass',
   colorPreset: initialSaved.colorPreset ?? 'ocean',
   customColor: initialSaved.customColor ?? '#06b6d4',
+  playerBarColor: initialSaved.playerBarColor ?? null,
+  defaultCoverUrl: initialSaved.defaultCoverUrl ?? '/default-cover.jpg',
+  backgroundBlur: initialSaved.backgroundBlur ?? 0,
   backgroundStyle: initialSaved.backgroundStyle ?? 'animated-mesh',
   playerMode: initialSaved.playerMode ?? 'floating-pill',
   sidebarMode: initialSaved.sidebarMode ?? 'expanded',
@@ -350,7 +367,6 @@ export const useThemeStore = create<ThemeState>((set, get) => {
     // Alias legacy
     backgroundType: 'ambient-mesh',
     playerSize: 'compact-floating',
-    backgroundBlur: 0,
     isCustomizerOpen: false,
 
     openCustomizer: () => set({ isCustomizerOpen: true }),
@@ -359,6 +375,9 @@ export const useThemeStore = create<ThemeState>((set, get) => {
     applyFullConfig: (newConfig) => commit(newConfig),
     setColorPreset: (preset) => commit({ colorPreset: preset }),
     setCustomColor: (color) => commit({ customColor: color, colorPreset: 'custom' }),
+    setPlayerBarColor: (color) => commit({ playerBarColor: color }),
+    setDefaultCoverUrl: (url) => commit({ defaultCoverUrl: url }),
+    setBackgroundBlur: (blur) => commit({ backgroundBlur: blur }),
     setBackgroundStyle: (style) => commit({ backgroundStyle: style }),
     setPlayerMode: (mode) => commit({ playerMode: mode }),
     setSidebarMode: (mode) => commit({ sidebarMode: mode }),
@@ -381,6 +400,9 @@ export const useThemeStore = create<ThemeState>((set, get) => {
         themeMode: 'liquid-glass',
         colorPreset: 'emerald',
         customColor: '#06b6d4',
+        playerBarColor: null,
+        defaultCoverUrl: '/default-cover.jpg',
+        backgroundBlur: 0,
         backgroundStyle: 'animated-mesh',
         playerMode: 'floating-pill',
         sidebarMode: 'expanded',
@@ -422,6 +444,9 @@ export const useThemeStore = create<ThemeState>((set, get) => {
         themeMode: state.themeMode,
         colorPreset: state.colorPreset,
         customColor: state.customColor,
+        playerBarColor: state.playerBarColor,
+        defaultCoverUrl: state.defaultCoverUrl,
+        backgroundBlur: state.backgroundBlur,
         backgroundStyle: state.backgroundStyle,
         playerMode: state.playerMode,
         sidebarMode: state.sidebarMode,
@@ -461,7 +486,6 @@ export const useThemeStore = create<ThemeState>((set, get) => {
     toggleThemeMode: () => commit({ themeMode: get().themeMode === 'liquid-glass' ? 'default' : 'liquid-glass' }),
     setBackgroundType: (type) => commit({ backgroundStyle: type === 'custom-image' ? 'custom-image' : 'animated-mesh' }),
     setPlayerSize: (size) => commit({ playerMode: size === 'default' ? 'docked-full' : 'floating-pill' }),
-    setBackgroundBlur: () => {},
     reorderSections: (sections) => commit({ sections }),
   };
 });

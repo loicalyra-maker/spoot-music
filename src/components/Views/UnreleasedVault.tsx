@@ -7,6 +7,7 @@ import { Unlock, ChevronDown, ChevronUp, Play, Pause, RefreshCw, Volume2, Sparkl
 import { ImageWithFallback } from '../Common/ImageWithFallback';
 import { VaultTrack, Track } from '../../types';
 import { useSpootStore } from '../../store/useSpootStore';
+import { useThemeStore } from '../../store/useThemeStore';
 import { deezerService } from '../../services/deezer_service';
 
 // 1. Cache mémoire de session (persiste pendant toute la session de navigation sans refetch inutile)
@@ -195,7 +196,7 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
       }
     }
 
-    const fallbackCover = '/default-cover.jpg';
+    const fallbackCover = useThemeStore.getState().defaultCoverUrl || '/default-cover.jpg';
     const playableTrack: Track = {
       id: `vt-${vt.id}`,
       isrc: `VAULT-${vt.id}`,

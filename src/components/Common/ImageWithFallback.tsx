@@ -4,6 +4,7 @@
 
 import React, { useState } from 'react';
 import { Music2 } from 'lucide-react';
+import { useThemeStore } from '../../store/useThemeStore';
 
 interface ImageWithFallbackProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   fallbackSrc?: string;
@@ -12,20 +13,24 @@ interface ImageWithFallbackProps extends React.ImgHTMLAttributes<HTMLImageElemen
 
 export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
   src,
-  fallbackSrc = '/default-cover.jpg',
+  fallbackSrc,
   alt = 'Pochette',
   className = '',
   iconClassName = 'w-1/3 h-1/3 opacity-40',
   ...props
 }) => {
   const [error, setError] = useState(false);
+  const storeDefaultCover = useThemeStore((s) => s.defaultCoverUrl);
+  const effectiveFallback = fallbackSrc && fallbackSrc !== '/default-cover.jpg'
+    ? fallbackSrc
+    : (storeDefaultCover || '/default-cover.jpg');
 
   // Si pas de source ou si le chargement échoue
   if (error || !src) {
-    if (fallbackSrc && fallbackSrc !== src) {
+    if (effectiveFallback && effectiveFallback !== src) {
       return (
         <img
-          src={fallbackSrc}
+          src={effectiveFallback}
           alt={alt}
           referrerPolicy="no-referrer"
           crossOrigin="anonymous"

@@ -51,6 +51,7 @@ export const NavigationLayout: React.FC<NavigationLayoutProps> = ({ children }) 
     glassOpacity,
     backgroundOpacity,
     backgroundImageUrl,
+    backgroundBlur,
   } = useThemeStore();
 
   const isLiquidGlass = themeMode === 'liquid-glass';
@@ -102,64 +103,80 @@ export const NavigationLayout: React.FC<NavigationLayoutProps> = ({ children }) 
         isLiquidGlass ? 'bg-[#04131a]' : 'bg-[#0B0B0C]'
       }`}
     >
-      {/* 1. FOND DYNAMIQUE : Mesh Gradient Animé (mouvement lent 45s) & Teinte Réactive */}
-      {isLiquidGlass && (
-        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
-          {/* Base d'Ambiance selon le Preset Actif (Océan, Aurore, Crépuscule, Minuit, Monochrome) */}
-          <div
-            className="absolute inset-0 transition-all duration-700 ease-out"
-            style={{
-              background: backgroundImageUrl
-                ? `url(${backgroundImageUrl}) center/cover no-repeat`
-                : presetTheme.baseBg,
-            }}
-          />
-
-          {/* Vagues subtiles pour le thème Océan */}
-          {activePreset === 'ocean' && !backgroundImageUrl && (
+      {/* 1. FOND DYNAMIQUE / WALLPAPER PERSONNALISÉ */}
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+        {backgroundImageUrl ? (
+          <>
+            {/* Image de fond personnalisée avec Flou et Assombrissement effectifs */}
             <div
-              className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-overlay transition-opacity duration-700"
+              className="absolute inset-0 transition-all duration-300 ease-out"
               style={{
-                backgroundImage: 'url(./liquid-glass-bg.svg)',
+                backgroundImage: `url(${backgroundImageUrl})`,
+                backgroundPosition: 'center',
+                backgroundSize: 'cover',
+                backgroundRepeat: 'no-repeat',
+                filter: (backgroundBlur ?? 0) > 0 ? `blur(${backgroundBlur}px)` : undefined,
+                transform: (backgroundBlur ?? 0) > 0 ? 'scale(1.08)' : 'none',
+                transformOrigin: 'center center',
               }}
             />
-          )}
+            {/* Filtre d'assombrissement réglable en direct */}
+            <div
+              className="absolute inset-0 bg-black transition-opacity duration-300"
+              style={{ opacity: backgroundOpacity ?? 0.35 }}
+            />
+          </>
+        ) : isLiquidGlass ? (
+          <>
+            {/* Base d'Ambiance selon le Preset Actif (Océan, Aurore, Crépuscule, Minuit, Monochrome) */}
+            <div
+              className="absolute inset-0 transition-all duration-700 ease-out"
+              style={{ background: presetTheme.baseBg }}
+            />
 
-          {/* Blobs organiques animés optimisés GPU (Mesh drift 45s, ProMotion 120Hz) */}
-          <div
-            className="absolute -top-32 left-1/4 w-[750px] h-[520px] rounded-full blur-[40px] md:blur-[110px] opacity-40 animate-fluid-mesh pointer-events-none transition-all duration-1000 ease-out will-change-transform"
-            style={{
-              background: `radial-gradient(circle, ${dynamicColor} 0%, ${secondaryColor} 60%, transparent 80%)`,
-              transform: 'translate3d(0, 0, 0)',
-            }}
-          />
-          <div
-            className="absolute -bottom-24 right-1/4 w-[650px] h-[480px] rounded-full blur-[35px] md:blur-[100px] opacity-30 animate-wave-pulse pointer-events-none transition-all duration-1000 ease-out will-change-transform"
-            style={{
-              background: `radial-gradient(circle, ${secondaryColor} 0%, ${dynamicColor} 60%, transparent 80%)`,
-              transform: 'translate3d(0, 0, 0)',
-            }}
-          />
+            {/* Vagues subtiles pour le thème Océan */}
+            {activePreset === 'ocean' && (
+              <div
+                className="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-overlay transition-opacity duration-700"
+                style={{
+                  backgroundImage: 'url(./liquid-glass-bg.svg)',
+                }}
+              />
+            )}
 
-          {/* Filtre d'assombrissement réglable en direct */}
-          <div
-            className="absolute inset-0 bg-black transition-opacity duration-300"
-            style={{ opacity: backgroundOpacity }}
-          />
-        </div>
-      )}
+            {/* Blobs organiques animés optimisés GPU (Mesh drift 45s, ProMotion 120Hz) */}
+            <div
+              className="absolute -top-32 left-1/4 w-[750px] h-[520px] rounded-full blur-[40px] md:blur-[110px] opacity-40 animate-fluid-mesh pointer-events-none transition-all duration-1000 ease-out will-change-transform"
+              style={{
+                background: `radial-gradient(circle, ${dynamicColor} 0%, ${secondaryColor} 60%, transparent 80%)`,
+                transform: 'translate3d(0, 0, 0)',
+              }}
+            />
+            <div
+              className="absolute -bottom-24 right-1/4 w-[650px] h-[480px] rounded-full blur-[35px] md:blur-[100px] opacity-30 animate-wave-pulse pointer-events-none transition-all duration-1000 ease-out will-change-transform"
+              style={{
+                background: `radial-gradient(circle, ${secondaryColor} 0%, ${dynamicColor} 60%, transparent 80%)`,
+                transform: 'translate3d(0, 0, 0)',
+              }}
+            />
 
-      {/* Mode Classique Sombre */}
-      {!isLiquidGlass && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 bg-[#0B0B0C]">
-          <div
-            className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[550px] rounded-full blur-[160px] opacity-20 transition-all duration-1000 ease-out"
-            style={{
-              background: `radial-gradient(circle, ${dynamicColor} 0%, transparent 70%)`,
-            }}
-          />
-        </div>
-      )}
+            {/* Filtre d'assombrissement réglable en direct */}
+            <div
+              className="absolute inset-0 bg-black transition-opacity duration-300"
+              style={{ opacity: backgroundOpacity }}
+            />
+          </>
+        ) : (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 bg-[#0B0B0C]">
+            <div
+              className="absolute -top-40 left-1/2 -translate-x-1/2 w-[900px] h-[550px] rounded-full blur-[160px] opacity-20 transition-all duration-1000 ease-out"
+              style={{
+                background: `radial-gradient(circle, ${dynamicColor} 0%, transparent 70%)`,
+              }}
+            />
+          </div>
+        )}
+      </div>
 
       {/* 2. Header : Mobile Native Header sur iPhone (< 768px), Desktop Header sur écran large */}
       {isMobile ? <MobileHeader /> : <Header />}

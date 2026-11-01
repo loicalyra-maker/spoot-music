@@ -37,6 +37,7 @@ export const HomeCustomizerModal: React.FC = () => {
   const { playlists } = useSpootStore();
   const themeStore = useThemeStore();
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const coverInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const handleImageFile = (file: File) => {
     if (!file) return;
@@ -66,6 +67,41 @@ export const HomeCustomizerModal: React.FC = () => {
           ctx.drawImage(img, 0, 0, w, h);
           const compressed = canvas.toDataURL('image/jpeg', 0.82);
           themeStore.setBackgroundImageUrl(compressed);
+        }
+      };
+      img.src = result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCoverFile = (file: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (!result) return;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 800;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.85);
+          themeStore.setDefaultCoverUrl(compressed);
         }
       };
       img.src = result;
@@ -586,17 +622,228 @@ export const HomeCustomizerModal: React.FC = () => {
                   <div className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-white/70">Flou d'ambiance (Backdrop Blur)</span>
-                      <span className="font-mono text-cyan-300 font-bold">{themeStore.backgroundBlur ?? 8} px</span>
+                      <span className="font-mono text-cyan-300 font-bold">{themeStore.backgroundBlur ?? 0} px</span>
                     </div>
                     <input
                       type="range"
                       min="0"
                       max="25"
                       step="1"
-                      value={themeStore.backgroundBlur ?? 8}
+                      value={themeStore.backgroundBlur ?? 0}
                       onChange={(e) => themeStore.setBackgroundBlur(parseInt(e.target.value, 10))}
                       className="w-full accent-cyan-400 cursor-pointer"
                     />
+                  </div>
+                </div>
+
+                {/* 2. IMAGE RÉCURRENTE / COUVERTURE PAR DÉFAUT */}
+                <div className="space-y-3 pt-4 border-t border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Image Récurrente (Pochette de secours universelle)</span>
+                      </h4>
+                      <p className="text-[10px] text-white/50 mt-0.5">
+                        Image affichée quand un morceau, un leak du Vault ou une playlist n'a pas de pochette officielle.
+                      </p>
+                    </div>
+                  </div>
+
+                  <input
+                    type="file"
+                    ref={coverInputRef}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) handleCoverFile(f);
+                    }}
+                    accept="image/*"
+                    className="hidden"
+                  />
+
+                  {/* Aperçu de la couverture active & boutons de choix */}
+                  <div className="flex items-center gap-3.5 p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                    <div className="w-14 h-14 rounded-xl overflow-hidden border border-white/20 shrink-0 bg-black/60 shadow-md">
+                      <img
+                        src={themeStore.defaultCoverUrl || '/default-cover.jpg'}
+                        alt="Couverture par défaut active"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1.5 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-white truncate">Pochette par défaut active</span>
+                        {themeStore.defaultCoverUrl && themeStore.defaultCoverUrl !== '/default-cover.jpg' && (
+                          <button
+                            onClick={() => themeStore.setDefaultCoverUrl('/default-cover.jpg')}
+                            className="text-[10px] text-rose-300/80 hover:text-rose-200 cursor-pointer font-bold"
+                          >
+                            Réinitialiser
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => coverInputRef.current?.click()}
+                        className="w-full py-1.5 px-2.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-400/30 text-purple-200 text-[11px] font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+                      >
+                        <Upload className="w-3 h-3" />
+                        <span>Importer une autre image récurrente...</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Presets rapides de couverture récurrente */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => themeStore.setDefaultCoverUrl('/default-cover.jpg')}
+                      className={`p-2 rounded-xl border text-[11px] font-bold text-left transition-all cursor-pointer flex items-center gap-2 ${
+                        themeStore.defaultCoverUrl === '/default-cover.jpg'
+                          ? 'bg-purple-500/20 border-purple-400 text-white'
+                          : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
+                      }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-purple-400 shrink-0" />
+                      <span className="truncate">Sasuke (Aura Violette)</span>
+                    </button>
+                    <button
+                      onClick={() => themeStore.setDefaultCoverUrl('/assets/wallpaper-sample.jpg')}
+                      className={`p-2 rounded-xl border text-[11px] font-bold text-left transition-all cursor-pointer flex items-center gap-2 ${
+                        themeStore.defaultCoverUrl === '/assets/wallpaper-sample.jpg'
+                          ? 'bg-purple-500/20 border-purple-400 text-white'
+                          : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
+                      }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-blue-400 shrink-0" />
+                      <span className="truncate">Sasuke (Combat)</span>
+                    </button>
+                    <button
+                      onClick={() => themeStore.setDefaultCoverUrl('/brand/spoot_logo_official.png')}
+                      className={`p-2 rounded-xl border text-[11px] font-bold text-left transition-all cursor-pointer flex items-center gap-2 ${
+                        themeStore.defaultCoverUrl === '/brand/spoot_logo_official.png'
+                          ? 'bg-purple-500/20 border-purple-400 text-white'
+                          : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
+                      }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span className="truncate">Spoot Néon Officiel</span>
+                    </button>
+                    <button
+                      onClick={() => themeStore.setDefaultCoverUrl('https://images.unsplash.com/photo-1539375665275-f9de415ef9ac?w=800&q=80')}
+                      className={`p-2 rounded-xl border text-[11px] font-bold text-left transition-all cursor-pointer flex items-center gap-2 ${
+                        themeStore.defaultCoverUrl?.includes('unsplash')
+                          ? 'bg-purple-500/20 border-purple-400 text-white'
+                          : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
+                      }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0" />
+                      <span className="truncate">Abstrait Minimaliste</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3. COULEUR DE LA BARRE DE LECTURE (MINI-PLAYER & PROGRESSION) */}
+                <div className="space-y-3 pt-4 border-t border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Couleur de cette barre (Mini-Player & Progression)</span>
+                      </h4>
+                      <p className="text-[10px] text-white/50 mt-0.5">
+                        Personnalisez la couleur de la barre de progression, des icônes et de l'ambiance du lecteur.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Aperçu en direct de la mini-barre */}
+                  <div
+                    className="p-2.5 rounded-xl border border-white/10 flex items-center justify-between gap-2.5 shadow-md"
+                    style={{
+                      background: 'rgba(16, 17, 20, 0.94)',
+                      borderColor: themeStore.playerBarColor ? `${themeStore.playerBarColor}44` : 'rgba(255, 255, 255, 0.14)',
+                    }}
+                  >
+                    <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 shrink-0">
+                      <img
+                        src={themeStore.defaultCoverUrl || '/default-cover.jpg'}
+                        alt="Mini"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <span className="text-[11px] font-bold text-white block truncate">Titre de démonstration</span>
+                      <span
+                        className="text-[10px] font-medium block truncate"
+                        style={{ color: themeStore.playerBarColor || 'var(--accent-color, #00e676)' }}
+                      >
+                        Artiste • En lecture
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs shrink-0">
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: themeStore.playerBarColor || 'var(--accent-color, #00e676)' }}
+                      />
+                      <span className="text-[10px] font-mono text-white/60">
+                        {themeStore.playerBarColor ? themeStore.playerBarColor.toUpperCase() : 'Auto'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Bouton Auto + Pastilles de couleur */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => themeStore.setPlayerBarColor(null)}
+                        className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                          themeStore.playerBarColor === null
+                            ? 'bg-cyan-500/20 border-cyan-400 text-white shadow-sm'
+                            : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+                        }`}
+                      >
+                        Automatique (Pochette)
+                      </button>
+
+                      {[
+                        { label: 'Spoot Vert', color: '#00E676' },
+                        { label: 'Sunset Orange', color: '#F97316' },
+                        { label: 'Améthyste', color: '#A855F7' },
+                        { label: 'Crimson', color: '#FF0055' },
+                        { label: 'Cyan', color: '#06B6D4' },
+                        { label: 'Gold', color: '#EAB308' },
+                        { label: 'Blanc', color: '#FFFFFF' },
+                      ].map((cp) => (
+                        <button
+                          key={cp.color}
+                          onClick={() => themeStore.setPlayerBarColor(cp.color)}
+                          className={`w-7 h-7 rounded-full border-2 transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                            themeStore.playerBarColor === cp.color
+                              ? 'border-white scale-110 shadow-[0_0_12px_rgba(255,255,255,0.6)]'
+                              : 'border-transparent hover:scale-105 opacity-80 hover:opacity-100'
+                          }`}
+                          style={{ backgroundColor: cp.color }}
+                          title={cp.label}
+                        >
+                          {themeStore.playerBarColor === cp.color && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-black/80" />
+                          )}
+                        </button>
+                      ))}
+
+                      {/* Sélecteur de couleur personnalisée */}
+                      <label
+                        className="w-7 h-7 rounded-full border border-white/30 hover:border-white flex items-center justify-center cursor-pointer transition-all bg-gradient-to-tr from-pink-500 via-amber-400 to-cyan-400 overflow-hidden shrink-0 shadow-sm"
+                        title="Choisir une couleur sur-mesure"
+                      >
+                        <input
+                          type="color"
+                          value={themeStore.playerBarColor || '#00E676'}
+                          onChange={(e) => themeStore.setPlayerBarColor(e.target.value)}
+                          className="opacity-0 w-0 h-0 absolute cursor-pointer"
+                        />
+                        <span className="text-[10px] text-black font-black">+</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>

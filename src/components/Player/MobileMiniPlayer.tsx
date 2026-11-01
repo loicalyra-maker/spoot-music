@@ -29,8 +29,8 @@ export const MobileMiniPlayer: React.FC = () => {
       style={{
         bottom: 'calc(3.8rem + max(env(safe-area-inset-bottom, 12px), 12px))',
         background: 'rgba(16, 17, 20, 0.94)',
-        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(var(--accent-rgb, 0, 230, 118), 0.15)',
-        border: '1px solid rgba(255, 255, 255, 0.14)',
+        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(var(--player-bar-rgb, var(--accent-rgb, 0, 230, 118)), 0.20)',
+        border: '1px solid rgba(var(--player-bar-rgb, 255, 255, 255), 0.22)',
       }}
       className="fixed left-2 right-2 z-40 rounded-xl overflow-hidden cursor-pointer select-none transition-all active:scale-[0.99] backdrop-blur-2xl"
     >
@@ -39,7 +39,6 @@ export const MobileMiniPlayer: React.FC = () => {
         <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-white/10 shadow-sm border border-white/10">
           <ImageWithFallback
             src={currentTrack.coverUrl}
-            fallbackSrc="/default-cover.jpg"
             alt={currentTrack.title}
             className="w-full h-full object-cover"
           />
@@ -52,7 +51,7 @@ export const MobileMiniPlayer: React.FC = () => {
           </p>
           <p
             className="text-[11px] truncate mt-0.5 font-medium transition-colors"
-            style={{ color: 'var(--accent-color, #00e676)' }}
+            style={{ color: 'var(--player-bar-color, var(--accent-color, #00e676))' }}
           >
             {currentTrack.artistName}
           </p>
@@ -67,7 +66,7 @@ export const MobileMiniPlayer: React.FC = () => {
           >
             <Speaker
               className="w-4 h-4 transition-colors"
-              style={{ color: 'var(--accent-color, #00e676)' }}
+              style={{ color: 'var(--player-bar-color, var(--accent-color, #00e676))' }}
             />
           </button>
 
@@ -78,7 +77,7 @@ export const MobileMiniPlayer: React.FC = () => {
           >
             <Heart
               className={`w-4 h-4 transition-colors ${currentTrack.isFavorite ? 'fill-current' : ''}`}
-              style={currentTrack.isFavorite ? { color: 'var(--accent-color, #00e676)' } : undefined}
+              style={currentTrack.isFavorite ? { color: 'var(--player-bar-color, var(--accent-color, #00e676))' } : undefined}
             />
           </button>
 
@@ -102,8 +101,8 @@ export const MobileMiniPlayer: React.FC = () => {
           className="h-full rounded-full transition-all duration-200"
           style={{
             width: `${progressPercent}%`,
-            backgroundColor: 'var(--accent-color, #00e676)',
-            boxShadow: '0 0 8px var(--accent-color, #00e676)',
+            backgroundColor: 'var(--player-bar-color, var(--accent-color, #00e676))',
+            boxShadow: '0 0 10px var(--player-bar-color, var(--accent-color, #00e676))',
           }}
         />
       </div>

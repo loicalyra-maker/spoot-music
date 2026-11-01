@@ -10,6 +10,7 @@ import {
   Sliders, Mic2, ShieldAlert, X, Maximize2
 } from 'lucide-react';
 import { useSpootStore } from '../../store/useSpootStore';
+import { useThemeStore } from '../../store/useThemeStore';
 import { lyricsService } from '../../services/lyrics_service';
 import { LyricLine } from '../../types';
 
@@ -163,7 +164,8 @@ export const ExpandedPlayer: React.FC = () => {
     }
   };
 
-  const fallbackCover = '/default-cover.jpg';
+  const storeDefaultCover = useThemeStore((s) => s.defaultCoverUrl);
+  const fallbackCover = storeDefaultCover || '/default-cover.jpg';
   const coverSrc = (!imageError && currentTrack.coverUrl) ? currentTrack.coverUrl : fallbackCover;
 
   return (

@@ -50,6 +50,7 @@ export const LiveCustomizerDrawer: React.FC = () => {
   const [importError, setImportError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const coverInputRef = useRef<HTMLInputElement | null>(null);
 
   // À l'ouverture du tiroir, mémoriser la configuration actuelle
   useEffect(() => {
@@ -58,6 +59,9 @@ export const LiveCustomizerDrawer: React.FC = () => {
         themeMode: themeStore.themeMode,
         colorPreset: themeStore.colorPreset,
         customColor: themeStore.customColor,
+        playerBarColor: themeStore.playerBarColor,
+        defaultCoverUrl: themeStore.defaultCoverUrl,
+        backgroundBlur: themeStore.backgroundBlur,
         backgroundStyle: themeStore.backgroundStyle,
         playerMode: themeStore.playerMode,
         sidebarMode: themeStore.sidebarMode,
@@ -91,6 +95,9 @@ export const LiveCustomizerDrawer: React.FC = () => {
         themeMode: themeStore.themeMode,
         colorPreset: themeStore.colorPreset,
         customColor: themeStore.customColor,
+        playerBarColor: themeStore.playerBarColor,
+        defaultCoverUrl: themeStore.defaultCoverUrl,
+        backgroundBlur: themeStore.backgroundBlur,
         backgroundStyle: themeStore.backgroundStyle,
         playerMode: themeStore.playerMode,
         sidebarMode: themeStore.sidebarMode,
@@ -109,6 +116,44 @@ export const LiveCustomizerDrawer: React.FC = () => {
         backgroundOpacity: themeStore.backgroundOpacity,
         sections: themeStore.sections,
       };
+
+  // Import d'image récurrente / pochette par défaut avec compression
+  const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        if (!result) return;
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 800;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            const compressed = canvas.toDataURL('image/jpeg', 0.85);
+            themeStore.setDefaultCoverUrl(compressed);
+          }
+        };
+        img.src = result;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   // Annuler les modifications et revenir à la configuration initiale
   const handleCancel = () => {
@@ -446,7 +491,7 @@ export const LiveCustomizerDrawer: React.FC = () => {
             )}
           </div>
 
-          {/* Image d'Arrière-Plan Personnalisée (Upload Local) */}
+          {/* Image d'Arrière-Plan Personnalisée (Upload Local & Sliders de Flou/Assombrissement) */}
           <div className="space-y-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08]">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-black uppercase tracking-wider text-white/50 block">
@@ -504,6 +549,134 @@ export const LiveCustomizerDrawer: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Presets rapides de fond */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={() => themeStore.setBackgroundImageUrl('/assets/default-cover.jpg')}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-white text-left transition-colors flex items-center gap-1.5"
+              >
+                <span className="w-2 h-2 rounded-full bg-purple-400 shrink-0" />
+                <span className="truncate">Sasuke (Aura)</span>
+              </button>
+              <button
+                onClick={() => themeStore.setBackgroundImageUrl('/assets/wallpaper-sample.jpg')}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-white text-left transition-colors flex items-center gap-1.5"
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
+                <span className="truncate">Sasuke (Combat)</span>
+              </button>
+            </div>
+
+            {/* Sliders Assombrissement & Flou d'ambiance effectif */}
+            <div className="space-y-3 pt-2 border-t border-white/10">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-white/70">Flou d'ambiance (Backdrop Blur)</span>
+                  <span className="font-mono text-cyan-300 font-bold">{themeStore.backgroundBlur ?? 0} px</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="25"
+                  step="1"
+                  value={themeStore.backgroundBlur ?? 0}
+                  onChange={(e) => themeStore.setBackgroundBlur(parseInt(e.target.value, 10))}
+                  className="w-full accent-cyan-400 cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-white/70">Assombrissement du fond</span>
+                  <span className="font-mono text-cyan-300 font-bold">{Math.round((themeStore.backgroundOpacity ?? 0.35) * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="0.85"
+                  step="0.05"
+                  value={themeStore.backgroundOpacity ?? 0.35}
+                  onChange={(e) => themeStore.setBackgroundOpacity(parseFloat(e.target.value))}
+                  className="w-full accent-cyan-400 cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Image Récurrente / Pochette par Défaut Universelle */}
+          <div className="space-y-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08]">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase tracking-wider text-white/50 block">
+                Image Récurrente (Pochette par défaut)
+              </span>
+              <span className="text-[10px] text-purple-300 font-mono">Universel</span>
+            </div>
+            <p className="text-[11px] text-white/60">
+              Cette image remplace automatiquement les pochettes manquantes (Vault leaks, playlists, etc.).
+            </p>
+
+            <input
+              type="file"
+              ref={coverInputRef}
+              onChange={handleCoverUpload}
+              accept="image/*"
+              className="hidden"
+            />
+
+            <div className="flex items-center gap-3">
+              <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-white/20 shrink-0 shadow-md bg-black/60">
+                <img
+                  src={themeStore.defaultCoverUrl || '/default-cover.jpg'}
+                  alt="Couverture active"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              <div className="flex-1 space-y-1.5">
+                <button
+                  onClick={() => coverInputRef.current?.click()}
+                  className="w-full py-1.5 px-3 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-200 border border-purple-400/30 text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Changer l'image récurrente...</span>
+                </button>
+                {themeStore.defaultCoverUrl && themeStore.defaultCoverUrl !== '/default-cover.jpg' && (
+                  <button
+                    onClick={() => themeStore.setDefaultCoverUrl('/default-cover.jpg')}
+                    className="text-[10px] text-rose-300 hover:text-rose-200 cursor-pointer block"
+                  >
+                    Rétablir Sasuke par défaut
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Presets rapides */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                onClick={() => themeStore.setDefaultCoverUrl('/default-cover.jpg')}
+                className={`p-2 rounded-xl border text-[11px] font-bold text-left transition-all cursor-pointer flex items-center gap-1.5 ${
+                  themeStore.defaultCoverUrl === '/default-cover.jpg'
+                    ? 'bg-purple-500/20 border-purple-400 text-white'
+                    : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-purple-400 shrink-0" />
+                <span className="truncate">Sasuke (Aura)</span>
+              </button>
+              <button
+                onClick={() => themeStore.setDefaultCoverUrl('/assets/wallpaper-sample.jpg')}
+                className={`p-2 rounded-xl border text-[11px] font-bold text-left transition-all cursor-pointer flex items-center gap-1.5 ${
+                  themeStore.defaultCoverUrl === '/assets/wallpaper-sample.jpg'
+                    ? 'bg-purple-500/20 border-purple-400 text-white'
+                    : 'bg-white/5 border-white/10 text-white/70 hover:text-white'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
+                <span className="truncate">Sasuke (Combat)</span>
+              </button>
+            </div>
           </div>
 
           {/* 3. Architecture du Lecteur & Gain de Place */}
@@ -560,6 +733,103 @@ export const LiveCustomizerDrawer: React.FC = () => {
                 <span className="text-xs font-bold">Dans Sidebar</span>
                 <span className="text-[9px] text-emerald-300 font-bold">+112 px (Max)</span>
               </button>
+            </div>
+          </div>
+
+          {/* Couleur de la barre de lecture (Mini-Player & Progression) */}
+          <div className="space-y-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.08]">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase tracking-wider text-white/50 block">
+                Couleur de cette barre (Lecteur & Progression)
+              </span>
+              <span className="text-[10px] text-cyan-300 font-mono">
+                {themeStore.playerBarColor ? themeStore.playerBarColor.toUpperCase() : 'Auto'}
+              </span>
+            </div>
+
+            {/* Aperçu en direct de la barre de lecture */}
+            <div
+              className="p-2.5 rounded-xl border border-white/10 flex items-center justify-between gap-2.5 shadow-md"
+              style={{
+                background: 'rgba(16, 17, 20, 0.94)',
+                borderColor: themeStore.playerBarColor ? `${themeStore.playerBarColor}44` : 'rgba(255, 255, 255, 0.14)',
+              }}
+            >
+              <div className="w-8 h-8 rounded-lg overflow-hidden border border-white/10 shrink-0">
+                <img
+                  src={themeStore.defaultCoverUrl || '/default-cover.jpg'}
+                  alt="Mini"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <span className="text-[11px] font-bold text-white block truncate">Titre en cours</span>
+                <span
+                  className="text-[10px] font-medium block truncate"
+                  style={{ color: themeStore.playerBarColor || 'var(--accent-color, #00e676)' }}
+                >
+                  Artiste officiel
+                </span>
+              </div>
+              <div className="w-16 h-1 rounded-full bg-white/15 overflow-hidden shrink-0">
+                <div
+                  className="h-full rounded-full w-2/3"
+                  style={{ backgroundColor: themeStore.playerBarColor || 'var(--accent-color, #00e676)' }}
+                />
+              </div>
+            </div>
+
+            {/* Pastilles de couleur & custom color picker */}
+            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              <button
+                onClick={() => themeStore.setPlayerBarColor(null)}
+                className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all cursor-pointer ${
+                  themeStore.playerBarColor === null
+                    ? 'bg-cyan-500/20 border-cyan-400 text-white'
+                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+                }`}
+              >
+                Auto (Album)
+              </button>
+
+              {[
+                { label: 'Spoot Vert', color: '#00E676' },
+                { label: 'Sunset Orange', color: '#F97316' },
+                { label: 'Améthyste', color: '#A855F7' },
+                { label: 'Crimson', color: '#FF0055' },
+                { label: 'Cyan', color: '#06B6D4' },
+                { label: 'Gold', color: '#EAB308' },
+                { label: 'Blanc', color: '#FFFFFF' },
+              ].map((cp) => (
+                <button
+                  key={cp.color}
+                  onClick={() => themeStore.setPlayerBarColor(cp.color)}
+                  className={`w-6 h-6 rounded-full border-2 transition-all cursor-pointer flex items-center justify-center shrink-0 ${
+                    themeStore.playerBarColor === cp.color
+                      ? 'border-white scale-110 shadow-[0_0_10px_rgba(255,255,255,0.6)]'
+                      : 'border-transparent opacity-80 hover:opacity-100 hover:scale-105'
+                  }`}
+                  style={{ backgroundColor: cp.color }}
+                  title={cp.label}
+                >
+                  {themeStore.playerBarColor === cp.color && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-black/80" />
+                  )}
+                </button>
+              ))}
+
+              <label
+                className="w-6 h-6 rounded-full border border-white/30 hover:border-white flex items-center justify-center cursor-pointer transition-all bg-gradient-to-tr from-pink-500 via-amber-400 to-cyan-400 overflow-hidden shrink-0 shadow-sm"
+                title="Choisir une couleur sur-mesure"
+              >
+                <input
+                  type="color"
+                  value={themeStore.playerBarColor || '#00E676'}
+                  onChange={(e) => themeStore.setPlayerBarColor(e.target.value)}
+                  className="opacity-0 w-0 h-0 absolute cursor-pointer"
+                />
+                <span className="text-[9px] text-black font-black">+</span>
+              </label>
             </div>
           </div>
 

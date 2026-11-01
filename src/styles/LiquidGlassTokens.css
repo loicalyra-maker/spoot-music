@@ -241,11 +241,11 @@ body {
 .slider-progress {
   position: absolute;
   height: 100%;
-  background: var(--slider-gradient, linear-gradient(117deg, #49a3fc 0%, #3681ee 100%));
+  background: var(--player-bar-color, var(--slider-gradient, linear-gradient(117deg, #49a3fc 0%, #3681ee 100%)));
   border-radius: 999px;
   width: 0%;
   z-index: 1;
-  box-shadow: 0 0 8px var(--accent-glow, rgba(6, 182, 212, 0.45));
+  box-shadow: 0 0 8px var(--player-bar-color, var(--accent-glow, rgba(6, 182, 212, 0.45)));
 }
 
 .slider-thumb-glass {
