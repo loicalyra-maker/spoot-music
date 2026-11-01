@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useSpootStore } from '../../store/useSpootStore';
 import { deezerService, DeezerAlbumDetails } from '../../services/deezer_service';
+import { ImageWithFallback } from '../Common/ImageWithFallback';
 import { Track } from '../../types';
 
 export const AlbumView: React.FC = () => {
@@ -93,9 +94,10 @@ export const AlbumView: React.FC = () => {
       <div className="relative px-8 pt-16 pb-8 bg-gradient-to-b from-[#6b4760] via-[#3a2233] to-[#121212] flex flex-col md:flex-row items-end gap-6 shadow-2xl">
         {/* Grande jaquette carrée officielle HD */}
         <div className="w-52 h-52 lg:w-60 lg:h-60 rounded-md overflow-hidden shadow-[0_16px_36px_rgba(0,0,0,0.6)] shrink-0 bg-[#282828]">
-          <img
-            src={album.coverXl}
+          <ImageWithFallback
+            src={album.coverXl || album.coverUrl}
             alt={album.title}
+            isUnreleased={false}
             className="w-full h-full object-cover"
           />
         </div>
@@ -145,7 +147,12 @@ export const AlbumView: React.FC = () => {
               if (isCurrentAlbumActive) {
                 togglePlayPause();
               } else if (album.tracks.length > 0) {
-                playTrack(album.tracks[0], album.tracks);
+                const enriched = album.tracks.map(t => ({
+                  ...t,
+                  coverUrl: t.coverUrl || album.coverXl || album.coverUrl,
+                  isUnreleased: false
+                }));
+                playTrack(enriched[0], enriched);
               }
             }}
             className="w-14 h-14 rounded-full bg-spoot-neon flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-transform shadow-xl"
@@ -160,7 +167,7 @@ export const AlbumView: React.FC = () => {
 
           {/* Miniature de l'album */}
           <div className="w-9 h-9 rounded overflow-hidden shadow border border-white/10 hidden sm:block">
-            <img src={album.coverUrl} alt="" className="w-full h-full object-cover" />
+            <ImageWithFallback src={album.coverUrl || album.coverXl} alt="" isUnreleased={false} className="w-full h-full object-cover" />
           </div>
 
           {/* Bouton Aléatoire */}
@@ -247,7 +254,17 @@ export const AlbumView: React.FC = () => {
                     if (isThisCurrent) {
                       togglePlayPause();
                     } else {
-                      playTrack(track, album.tracks);
+                      const enriched = album.tracks.map(t => ({
+                        ...t,
+                        coverUrl: t.coverUrl || album.coverXl || album.coverUrl,
+                        isUnreleased: false
+                      }));
+                      const enrichedTrack = {
+                        ...track,
+                        coverUrl: track.coverUrl || album.coverXl || album.coverUrl,
+                        isUnreleased: false
+                      };
+                      playTrack(enrichedTrack, enriched);
                     }
                   }}
                   className={`group hover:bg-[#282828]/60 rounded-md transition-colors cursor-pointer ${

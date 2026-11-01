@@ -13,6 +13,7 @@ import { useSpootStore } from '../../store/useSpootStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { lyricsService } from '../../services/lyrics_service';
 import { LyricLine } from '../../types';
+import { ImageWithFallback } from '../Common/ImageWithFallback';
 
 export const ExpandedPlayer: React.FC = () => {
   const {
@@ -165,7 +166,9 @@ export const ExpandedPlayer: React.FC = () => {
     }
   };
 
-  const fallbackCover = storeDefaultCover || '/default-cover.jpg';
+  // Seuls les titres du Vault / Unreleased utilisent Sasuke comme fallback de secours
+  const isUnreleasedTrack = Boolean(currentTrack.isUnreleased);
+  const fallbackCover = isUnreleasedTrack ? (storeDefaultCover || '/default-cover.jpg') : '';
   const rawCover = (!imageError && currentTrack.coverUrl) ? currentTrack.coverUrl : fallbackCover;
   const highResCoverSrc = rawCover
     ? rawCover
@@ -320,12 +323,10 @@ export const ExpandedPlayer: React.FC = () => {
       <div className="w-full max-w-md mx-auto flex-1 min-h-[32vh] sm:min-h-[38vh] relative z-10 flex items-center justify-center px-6 py-2">
         {!currentTrack.canvasUrl && (
           <div className="relative aspect-square w-[76vw] max-w-[340px] rounded-3xl overflow-hidden shadow-[0_24px_70px_rgba(0,0,0,0.85)] border border-white/10 group animate-in zoom-in-95 duration-200">
-            <img
+            <ImageWithFallback
               src={highResCoverSrc}
               alt={currentTrack.title}
-              onError={() => setImageError(true)}
-              referrerPolicy="no-referrer"
-              crossOrigin="anonymous"
+              isUnreleased={isUnreleasedTrack}
               className="w-full h-full object-cover"
             />
           </div>

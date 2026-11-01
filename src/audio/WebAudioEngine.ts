@@ -62,10 +62,14 @@ export class WebAudioEngine {
       });
 
       this.audioEl.addEventListener('loadedmetadata', () => {
-        if (this.pendingSeekSec !== null && this.audioEl) {
+        if (this.audioEl) {
           try {
-            this.audioEl.currentTime = this.pendingSeekSec;
-            this.pendingSeekSec = null;
+            if (this.pendingSeekSec !== null && this.pendingSeekSec > 0) {
+              this.audioEl.currentTime = this.pendingSeekSec;
+              this.pendingSeekSec = null;
+            } else {
+              this.audioEl.currentTime = 0;
+            }
           } catch {}
         }
       });

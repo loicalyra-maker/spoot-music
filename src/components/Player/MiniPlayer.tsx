@@ -10,6 +10,7 @@ import { useSpootStore } from '../../store/useSpootStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { audioCore } from '../../audio/WebAudioEngine';
 import { DevicePickerMenu } from './DevicePickerMenu';
+import { ImageWithFallback } from '../Common/ImageWithFallback';
 
 export const MiniPlayer: React.FC = () => {
   const {
@@ -133,9 +134,10 @@ export const MiniPlayer: React.FC = () => {
           onClick={() => setExpandedPlayerOpen(true)}
           className="relative group w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-2xl overflow-hidden cursor-pointer shrink-0 shadow-lg bg-white/10 border border-white/20 transition-transform hover:scale-105"
         >
-          <img
+          <ImageWithFallback
             src={currentTrack.coverUrl}
             alt={currentTrack.title}
+            isUnreleased={Boolean(currentTrack.isUnreleased)}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
           />
         </div>

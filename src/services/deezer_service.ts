@@ -175,7 +175,7 @@ export class DeezerService {
    * Mappe un titre Deezer vers le format interne Track
    */
   public mapDeezerTrack(t: any, fallbackCover?: string, playCountOverride?: number): Track {
-    const coverHd = t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || fallbackCover || '/default-cover.jpg';
+    const coverHd = t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || fallbackCover || '';
     const artistName = t.artist?.name || (typeof t.artist === 'string' ? t.artist : 'Artiste Inconnu');
     const artistId = String(t.artist?.id || '0');
     const albumId = String(t.album?.id || '0');
@@ -206,6 +206,7 @@ export class DeezerService {
       lastPlayedTimestamp: Date.now(),
       isFavorite: false,
       isOfflineDownloaded: false,
+      isUnreleased: false,
       isExplicit: t.explicit_lyrics || Boolean(t.explicit_content_lyrics),
       hasVideo: Boolean(t.has_video || deterministicHash(trackId) % 3 === 0),
       palette: {
@@ -255,6 +256,7 @@ export class DeezerService {
       lastPlayedTimestamp: Date.now(),
       isFavorite: false,
       isOfflineDownloaded: false,
+      isUnreleased: false,
       isExplicit: item.trackExplicitness === 'explicit',
       hasVideo: false,
       palette: { primary: '#450af5', secondary: '#121212' },

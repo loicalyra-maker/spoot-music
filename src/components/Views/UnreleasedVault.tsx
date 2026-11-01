@@ -206,7 +206,8 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
       albumId: 'vault',
       albumTitle: 'Archives & Leaks (Exclusivité Spoot • yt-dlp Live)',
       coverUrl: vt.coverUrl || fallbackCover,
-      streamUrl: streamToUse || 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bf/20/4f/bf204f14-9fa0-7d7d-e717-b769f584e035/mzaf_11306359050637175240.plus.aac.p.m4a',
+      isUnreleased: true,
+      streamUrl: streamToUse || '',
       durationMs: vt.durationMs || 210000,
       sampleRate: 48000,
       bitDepth: 24,
@@ -391,6 +392,7 @@ export const UnreleasedVault: React.FC<UnreleasedVaultProps> = ({ artistName, ar
                         <ImageWithFallback
                           src={vt.coverUrl}
                           alt={vt.title}
+                          isUnreleased={true}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           iconClassName="w-4 h-4"
                         />

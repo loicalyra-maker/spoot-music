@@ -2,14 +2,15 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
+  "regions": ["cdg1"],
   "rewrites": [
     {
-      "source": "/api/deezer/(.*)",
-      "destination": "https://api.deezer.com/$1"
+      "source": "/api/deezer/:path*",
+      "destination": "https://api.deezer.com/:path*"
     },
     {
-      "source": "/api/lrclib/(.*)",
-      "destination": "https://lrclib.net/$1"
+      "source": "/api/lrclib/:path*",
+      "destination": "https://lrclib.net/:path*"
     },
     {
       "source": "/(.*)",
@@ -18,7 +19,7 @@
   ],
   "headers": [
     {
-      "source": "/api/deezer/(.*)",
+      "source": "/api/(.*)",
       "headers": [
         {
           "key": "Access-Control-Allow-Origin",
@@ -27,6 +28,10 @@
         {
           "key": "Access-Control-Allow-Methods",
           "value": "GET, HEAD, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Range, Authorization"
         }
       ]
     },

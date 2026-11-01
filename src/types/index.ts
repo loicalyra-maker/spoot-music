@@ -60,6 +60,7 @@ export interface Track {
   hasVideo?: boolean;
   canvasUrl?: string;
   isInstrumental?: boolean;
+  isUnreleased?: boolean;
 }
 
 export interface Album {

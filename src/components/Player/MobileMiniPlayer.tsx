@@ -40,6 +40,7 @@ export const MobileMiniPlayer: React.FC = () => {
           <ImageWithFallback
             src={currentTrack.coverUrl}
             alt={currentTrack.title}
+            isUnreleased={Boolean(currentTrack.isUnreleased)}
             className="w-full h-full object-cover"
           />
         </div>

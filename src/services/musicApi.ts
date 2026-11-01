@@ -255,6 +255,7 @@ export class MusicApiService {
       lastPlayedTimestamp: Date.now(),
       isFavorite: false,
       isOfflineDownloaded: false,
+      isUnreleased: false,
       palette: { primary: '#1B263B', secondary: '#0D1B2A' },
       audioGenSeed: item.id % 1000,
       acousticVector: {
@@ -299,6 +300,7 @@ export class MusicApiService {
       lastPlayedTimestamp: Date.now(),
       isFavorite: false,
       isOfflineDownloaded: false,
+      isUnreleased: false,
       palette: { primary: '#1B263B', secondary: '#0D1B2A' },
       audioGenSeed: item.trackId % 1000,
       acousticVector: {
