@@ -118,15 +118,39 @@ export const LiveCustomizerDrawer: React.FC = () => {
     closeCustomizer();
   };
 
-  // Import d'image personnalisée pour l'arrière-plan
+  // Import d'image personnalisée pour l'arrière-plan avec compression matérielle
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          themeStore.setBackgroundImageUrl(reader.result);
-        }
+      reader.onload = (ev) => {
+        const result = ev.target?.result as string;
+        if (!result) return;
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 1920;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            const compressed = canvas.toDataURL('image/jpeg', 0.82);
+            themeStore.setBackgroundImageUrl(compressed);
+          }
+        };
+        img.src = result;
       };
       reader.readAsDataURL(file);
     }

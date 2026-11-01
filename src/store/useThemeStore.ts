@@ -9,7 +9,7 @@ export interface HomeSectionConfig {
 }
 
 export type ThemeMode = 'default' | 'liquid-glass';
-export type ColorPreset = 'ocean' | 'aurora' | 'sunset' | 'midnight' | 'monochrome' | 'custom';
+export type ColorPreset = 'dynamic' | 'emerald' | 'amethyst' | 'crimson' | 'amber' | 'ocean' | 'midnight' | 'monochrome' | 'aurora' | 'sunset' | 'custom';
 export type BackgroundStyle = 'animated-mesh' | 'album-adaptive' | 'static-sea' | 'custom-image';
 export type PlayerMode = 'floating-pill' | 'docked-full' | 'sidebar-mini' | 'hidden';
 export type SidebarMode = 'expanded' | 'compact-icons' | 'hidden';
@@ -113,7 +113,64 @@ export interface PresetThemeDefinition {
   baseBg: string;
 }
 
+function hexToRgb(hex: string): string {
+  const clean = hex.replace('#', '');
+  if (clean.length === 3) {
+    const r = parseInt(clean[0] + clean[0], 16);
+    const g = parseInt(clean[1] + clean[1], 16);
+    const b = parseInt(clean[2] + clean[2], 16);
+    return `${r}, ${g}, ${b}`;
+  }
+  if (clean.length === 6) {
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+    return `${r}, ${g}, ${b}`;
+  }
+  return '0, 230, 118';
+}
+
 export const PRESET_COLORS: Record<ColorPreset, PresetThemeDefinition> = {
+  dynamic: {
+    primary: '#00e676',
+    secondary: '#00b0ff',
+    glow: 'rgba(0, 230, 118, 0.45)',
+    highlight: 'rgba(0, 230, 118, 0.75)',
+    gradient: 'linear-gradient(117deg, #00e676 0%, #00b0ff 100%)',
+    baseBg: 'linear-gradient(145deg, #011409 0%, #032412 50%, #000a04 100%)'
+  },
+  emerald: {
+    primary: '#00e676',
+    secondary: '#00b0ff',
+    glow: 'rgba(0, 230, 118, 0.45)',
+    highlight: 'rgba(0, 230, 118, 0.75)',
+    gradient: 'linear-gradient(117deg, #00e676 0%, #00b0ff 100%)',
+    baseBg: 'linear-gradient(145deg, #011409 0%, #032412 50%, #000a04 100%)'
+  },
+  amethyst: {
+    primary: '#a855f7',
+    secondary: '#6366f1',
+    glow: 'rgba(168, 85, 247, 0.45)',
+    highlight: 'rgba(192, 132, 252, 0.75)',
+    gradient: 'linear-gradient(117deg, #a855f7 0%, #6366f1 100%)',
+    baseBg: 'linear-gradient(145deg, #13031f 0%, #200733 50%, #090110 100%)'
+  },
+  crimson: {
+    primary: '#ff0055',
+    secondary: '#9900ef',
+    glow: 'rgba(255, 0, 85, 0.45)',
+    highlight: 'rgba(255, 51, 119, 0.75)',
+    gradient: 'linear-gradient(117deg, #ff0055 0%, #9900ef 100%)',
+    baseBg: 'linear-gradient(145deg, #1c0209 0%, #2e0511 50%, #0b0104 100%)'
+  },
+  amber: {
+    primary: '#eab308',
+    secondary: '#f97316',
+    glow: 'rgba(234, 179, 8, 0.45)',
+    highlight: 'rgba(250, 204, 21, 0.75)',
+    gradient: 'linear-gradient(117deg, #eab308 0%, #f97316 100%)',
+    baseBg: 'linear-gradient(145deg, #1a1202 0%, #2b1f04 50%, #0b0701 100%)'
+  },
   ocean: {
     primary: '#06b6d4',
     secondary: '#0284c7',
@@ -121,22 +178,6 @@ export const PRESET_COLORS: Record<ColorPreset, PresetThemeDefinition> = {
     highlight: 'rgba(34, 211, 238, 0.65)',
     gradient: 'linear-gradient(117deg, #06b6d4 0%, #0284c7 100%)',
     baseBg: 'linear-gradient(145deg, #021a24 0%, #052636 50%, #010d14 100%)'
-  },
-  aurora: {
-    primary: '#ec4899',
-    secondary: '#8b5cf6',
-    glow: 'rgba(236, 72, 153, 0.45)',
-    highlight: 'rgba(244, 114, 182, 0.65)',
-    gradient: 'linear-gradient(117deg, #ec4899 0%, #8b5cf6 100%)',
-    baseBg: 'linear-gradient(145deg, #1b0728 0%, #2b0b3d 50%, #0a0212 100%)'
-  },
-  sunset: {
-    primary: '#f97316',
-    secondary: '#d946ef',
-    glow: 'rgba(249, 115, 22, 0.45)',
-    highlight: 'rgba(251, 146, 60, 0.65)',
-    gradient: 'linear-gradient(117deg, #f97316 0%, #d946ef 100%)',
-    baseBg: 'linear-gradient(145deg, #250a04 0%, #3a1308 50%, #0e030a 100%)'
   },
   midnight: {
     primary: '#38bdf8',
@@ -154,13 +195,29 @@ export const PRESET_COLORS: Record<ColorPreset, PresetThemeDefinition> = {
     gradient: 'linear-gradient(117deg, #ffffff 0%, #94a3b8 100%)',
     baseBg: 'linear-gradient(145deg, #131417 0%, #1c1d22 50%, #08080a 100%)'
   },
+  aurora: {
+    primary: '#ec4899',
+    secondary: '#8b5cf6',
+    glow: 'rgba(236, 72, 153, 0.45)',
+    highlight: 'rgba(244, 114, 182, 0.65)',
+    gradient: 'linear-gradient(117deg, #ec4899 0%, #8b5cf6 100%)',
+    baseBg: 'linear-gradient(145deg, #1b0728 0%, #2b0b3d 50%, #0a0212 100%)'
+  },
+  sunset: {
+    primary: '#f97316',
+    secondary: '#d946ef',
+    glow: 'rgba(249, 115, 22, 0.45)',
+    highlight: 'rgba(251, 146, 60, 0.65)',
+    gradient: 'linear-gradient(117deg, #f97316 0%, #d946ef 100%)',
+    baseBg: 'linear-gradient(145deg, #250a04 0%, #3a1308 50%, #0e030a 100%)'
+  },
   custom: {
-    primary: '#06b6d4',
-    secondary: '#0284c7',
-    glow: 'rgba(6, 182, 212, 0.45)',
-    highlight: 'rgba(34, 211, 238, 0.65)',
-    gradient: 'linear-gradient(117deg, #06b6d4 0%, #0284c7 100%)',
-    baseBg: 'linear-gradient(145deg, #021a24 0%, #052636 50%, #010d14 100%)'
+    primary: '#00e676',
+    secondary: '#00b0ff',
+    glow: 'rgba(0, 230, 118, 0.45)',
+    highlight: 'rgba(0, 230, 118, 0.75)',
+    gradient: 'linear-gradient(117deg, #00e676 0%, #00b0ff 100%)',
+    baseBg: 'linear-gradient(145deg, #011409 0%, #032412 50%, #000a04 100%)'
   }
 };
 
@@ -202,6 +259,7 @@ export const applyThemeToDOM = (state: Partial<ThemeConfig>) => {
 
   // Mise à jour intégrale des variables CSS d'accent, de reflet et de dégradé
   root.style.setProperty('--accent-color', colors.primary);
+  root.style.setProperty('--accent-rgb', hexToRgb(colors.primary));
   root.style.setProperty('--accent-primary', colors.primary);
   root.style.setProperty('--accent-secondary', colors.secondary);
   root.style.setProperty('--accent-glow', colors.glow);
@@ -212,6 +270,11 @@ export const applyThemeToDOM = (state: Partial<ThemeConfig>) => {
   root.style.setProperty('--accent-base-bg', colors.baseBg);
   root.style.setProperty('--glass-reflet', `linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, ${colors.glow} 45%, transparent 70%)`);
   root.setAttribute('data-color-preset', preset);
+  if (state.backgroundImageUrl) {
+    root.setAttribute('data-has-custom-wallpaper', 'true');
+  } else {
+    root.removeAttribute('data-has-custom-wallpaper');
+  }
 };
 
 const loadSavedTheme = (): Partial<ThemeConfig> => {
@@ -316,7 +379,7 @@ export const useThemeStore = create<ThemeState>((set, get) => {
     resetTheme: () => {
       const resetConfig: ThemeConfig = {
         themeMode: 'liquid-glass',
-        colorPreset: 'ocean',
+        colorPreset: 'emerald',
         customColor: '#06b6d4',
         backgroundStyle: 'animated-mesh',
         playerMode: 'floating-pill',

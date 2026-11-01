@@ -1,5 +1,6 @@
 // Spoot Music — Mobile Native iPhone Bottom Navigation Bar (MobileBottomNav.tsx)
 // 5 Tab Items: Accueil, Recherche, Bibliothèque, Studio (Personnaliser), Coffre (Vault)
+// Réactif à 100% à la couleur d'accentuation dynamique (--accent-color / --accent-rgb)
 import React from 'react';
 import { Home, Search, Library, Sliders, Settings } from 'lucide-react';
 import { useSpootStore } from '../../store/useSpootStore';
@@ -58,24 +59,40 @@ export const MobileBottomNav: React.FC = () => {
               onClick={item.action}
               className={`flex flex-col items-center justify-center gap-1 py-1 px-3 rounded-xl transition-all cursor-pointer active:scale-90 ${
                 item.isActive
-                  ? 'text-white'
+                  ? 'scale-105'
                   : 'text-white/50 hover:text-white/80'
               }`}
+              style={
+                item.isActive
+                  ? {
+                      color: 'var(--accent-color, #00e676)',
+                      background: 'rgba(var(--accent-rgb, 0, 230, 118), 0.08)',
+                    }
+                  : undefined
+              }
             >
               <div className="relative">
                 <Icon
                   className={`w-5 h-5 transition-transform ${
-                    item.isActive ? 'stroke-[2.5px] scale-105 text-cyan-300' : 'stroke-[1.8px]'
+                    item.isActive ? 'stroke-[2.5px]' : 'stroke-[1.8px]'
                   }`}
+                  style={item.isActive ? { color: 'var(--accent-color, #00e676)' } : undefined}
                 />
                 {item.isActive && (
-                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-cyan-400 rounded-full shadow-[0_0_6px_#06b6d4]" />
+                  <span
+                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full"
+                    style={{
+                      backgroundColor: 'var(--accent-color, #00e676)',
+                      boxShadow: '0 0 8px var(--accent-color, #00e676)',
+                    }}
+                  />
                 )}
               </div>
               <span
                 className={`text-[10px] tracking-tight ${
-                  item.isActive ? 'font-bold text-white' : 'font-medium text-white/50'
+                  item.isActive ? 'font-bold' : 'font-medium text-white/50'
                 }`}
+                style={item.isActive ? { color: 'var(--accent-color, #00e676)' } : undefined}
               >
                 {item.label}
               </span>

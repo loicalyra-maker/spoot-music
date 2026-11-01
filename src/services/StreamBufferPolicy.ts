@@ -81,7 +81,7 @@ class StreamBufferPolicyService {
         if (typeof window !== 'undefined' && 'fetch' in window) {
           this.activeBurstController?.abort();
           this.activeBurstController = new AbortController();
-          const proxied = resolvedUrl.includes('googlevideo.com')
+          const proxied = (resolvedUrl.includes('googlevideo.com') && !resolvedUrl.startsWith('/api/stream-audio'))
             ? `/api/stream-audio?url=${encodeURIComponent(resolvedUrl)}`
             : resolvedUrl;
 

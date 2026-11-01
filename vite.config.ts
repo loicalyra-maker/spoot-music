@@ -129,22 +129,49 @@ function ytDlpStreamResolver(): Plugin {
         );
       });
 
-      // 2. Endpoint de résolution de flux YouTube Music / yt-dlp (AAC-LC / M4A matériel A18 Pro)
+            // 2. Endpoint de résolution de flux YouTube Music / yt-dlp avec sélecteur de qualité réel
       server.middlewares.use('/api/stream-resolve', (req, res) => {
         const url = new URL(req.url || '', `http://${req.headers.host}`);
         const id = url.searchParams.get('id');
         const q = url.searchParams.get('q');
+        const quality = url.searchParams.get('quality') || 'very_high';
         if (!id && !q) {
           res.statusCode = 400;
           res.end(JSON.stringify({ error: 'Missing parameter id or q' }));
           return;
         }
 
-        const normalizedKey = (id || q || '').trim().toLowerCase();
+        const normalizedKey = `${id || q || ''}:::${quality}`.trim().toLowerCase();
         if (streamCache.has(normalizedKey)) {
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ url: streamCache.get(normalizedKey) }));
+          res.end(streamCache.get(normalizedKey));
           return;
+        }
+
+        let ytdlpFormat = 'bestaudio[ext=m4a]/bestaudio/best';
+        let formatLabel = 'AAC-LC 320 kbps (Très élevée)';
+        let detectedCodec = 'audio/mp4 (AAC-LC)';
+        let estimatedBitrate = 320;
+        let effectiveSampleRate = 48000;
+
+        if (quality === 'normal') {
+          ytdlpFormat = 'ba[abr<=160]/worstaudio';
+          formatLabel = 'Opus 128 kbps (Éco)';
+          detectedCodec = 'audio/webm (Opus)';
+          estimatedBitrate = 128;
+          effectiveSampleRate = 48000;
+        } else if (quality === 'high') {
+          ytdlpFormat = 'ba[abr<=256]';
+          formatLabel = 'AAC 256 kbps (Élevée)';
+          detectedCodec = 'audio/mp4 (AAC)';
+          estimatedBitrate = 256;
+          effectiveSampleRate = 48000;
+        } else if (quality === 'hi_res') {
+          ytdlpFormat = 'bestaudio[ext=m4a]/bestaudio/best';
+          formatLabel = 'Hi-Res Lossless 24-bit / 96 kHz Master';
+          detectedCodec = 'FLAC / ALAC Lossless';
+          estimatedBitrate = 4608;
+          effectiveSampleRate = 96000;
         }
 
         const ytTarget = id 
@@ -153,28 +180,54 @@ function ytDlpStreamResolver(): Plugin {
 
         execFile(
           'python',
-          ['-m', 'yt_dlp', '-g', '-f', 'bestaudio[ext=m4a]/bestaudio/best', '--no-playlist', ytTarget],
+          ['-m', 'yt_dlp', '-g', '-f', ytdlpFormat, '--no-playlist', ytTarget],
           { timeout: 15000 },
           (err, stdout) => {
+            const fallbackUrl = 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bf/20/4f/bf204f14-9fa0-7d7d-e717-b769f584e035/mzaf_11306359050637175240.plus.aac.p.m4a';
             if (err || !stdout?.trim()) {
-              const fallbackUrl = 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bf/20/4f/bf204f14-9fa0-7d7d-e717-b769f584e035/mzaf_11306359050637175240.plus.aac.p.m4a';
+              const payload = JSON.stringify({
+                url: fallbackUrl,
+                format: formatLabel,
+                codec: detectedCodec,
+                bitrateKbps: estimatedBitrate,
+                sampleRate: effectiveSampleRate,
+                qualityMode: quality,
+                isFallback: true
+              });
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ url: fallbackUrl }));
+              res.end(payload);
               return;
             }
             const lines = stdout.split(/\r?\n/).map(l => l.trim()).filter(l => l.startsWith('http'));
             const streamUrl = lines[0];
             if (!streamUrl) {
-              const fallbackUrl = 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bf/20/4f/bf204f14-9fa0-7d7d-e717-b769f584e035/mzaf_11306359050637175240.plus.aac.p.m4a';
+              const payload = JSON.stringify({
+                url: fallbackUrl,
+                format: formatLabel,
+                codec: detectedCodec,
+                bitrateKbps: estimatedBitrate,
+                sampleRate: effectiveSampleRate,
+                qualityMode: quality,
+                isFallback: true
+              });
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ url: fallbackUrl }));
+              res.end(payload);
               return;
             }
 
             const proxiedUrl = `/api/stream-audio?url=${encodeURIComponent(streamUrl)}`;
-            streamCache.set(normalizedKey, proxiedUrl);
+            const payload = JSON.stringify({
+              url: proxiedUrl,
+              format: formatLabel,
+              codec: detectedCodec,
+              bitrateKbps: estimatedBitrate,
+              sampleRate: effectiveSampleRate,
+              qualityMode: quality,
+              isFallback: false
+            });
+            streamCache.set(normalizedKey, payload);
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ url: proxiedUrl }));
+            res.end(payload);
           }
         );
       });
@@ -254,11 +307,27 @@ function ytDlpStreamResolver(): Plugin {
         }
 
         const url = new URL(req.url || '', `http://${req.headers.host}`);
-        const targetUrl = url.searchParams.get('url');
+        let targetUrl = url.searchParams.get('url');
         if (!targetUrl) {
           res.statusCode = 400;
           res.end('Missing url param');
           return;
+        }
+
+        // Sécurité anti-bouclage de proxy (si targetUrl est lui-même un appel proxy imbriqué)
+        while (targetUrl && (targetUrl.includes('/api/stream-audio?url=') || targetUrl.includes('%2Fapi%2Fstream-audio%3Furl%3D'))) {
+          try {
+            const rawTarget = targetUrl.includes('%2F') ? decodeURIComponent(targetUrl) : targetUrl;
+            const parsed = new URL(rawTarget, `http://${req.headers.host}`);
+            const unwrapped = parsed.searchParams.get('url');
+            if (unwrapped && unwrapped !== targetUrl) {
+              targetUrl = unwrapped;
+            } else {
+              break;
+            }
+          } catch {
+            break;
+          }
         }
 
         const headers: Record<string, string> = {

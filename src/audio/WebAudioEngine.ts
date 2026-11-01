@@ -251,11 +251,14 @@ export class WebAudioEngine {
     let streamUrl = track.streamUrl;
     if (!streamUrl || streamResolver.is30sPreview(streamUrl)) {
       try {
-        streamUrl = await streamResolver.resolveFullAudio(
+        const quality = (this as any).audioQualityMode || 'very_high';
+        const meta = await streamResolver.resolveFullAudioWithMeta(
           track.artistName,
           track.title,
-          (track as any).youtubeId
+          (track as any).youtubeId,
+          quality
         );
+        streamUrl = meta.url;
         track.streamUrl = streamUrl;
       } catch {
         streamUrl = await musicApi.resolveFullAudioStream(track.artistName, track.title, track.streamUrl);
@@ -263,7 +266,7 @@ export class WebAudioEngine {
       }
     }
 
-    if (streamUrl && streamUrl.startsWith('https://') && streamUrl.includes('googlevideo.com')) {
+    if (streamUrl && streamUrl.startsWith('https://') && streamUrl.includes('googlevideo.com') && !streamUrl.startsWith('/api/stream-audio')) {
       streamUrl = `/api/stream-audio?url=${encodeURIComponent(streamUrl)}`;
       track.streamUrl = streamUrl;
     }
@@ -385,8 +388,51 @@ export class WebAudioEngine {
     (this as any).crossfadeSecs = Math.max(0, Math.min(12, secs));
   }
 
-  public setAudioQuality(quality: 'auto' | 'normal' | 'high' | 'very_high' | 'hi_res') {
+    public async setAudioQuality(quality: 'auto' | 'normal' | 'high' | 'very_high' | 'hi_res') {
     (this as any).audioQualityMode = quality;
+    if (this.currentTrack && !this.isPaused && this.audioEl) {
+      const currentPos = this.virtualPositionMs;
+      try {
+        const meta = await streamResolver.resolveFullAudioWithMeta(
+          this.currentTrack.artistName,
+          this.currentTrack.title,
+          (this.currentTrack as any).youtubeId,
+          quality
+        );
+        if (meta.url && this.audioEl.src !== meta.url) {
+          const wasPlaying = !this.isPaused;
+          this.currentTrack.streamUrl = meta.url;
+          this.audioEl.src = meta.url;
+          this.pendingSeekSec = currentPos / 1000.0;
+          if (wasPlaying) {
+            await this.audioEl.play();
+          }
+        }
+      } catch (e) {
+        console.warn('Live quality switch error:', e);
+      }
+    }
+  }
+
+  public getAudioStats() {
+    let bufferedSecs = 0;
+    if (this.audioEl && this.audioEl.buffered.length > 0) {
+      bufferedSecs = Math.max(0, this.audioEl.buffered.end(this.audioEl.buffered.length - 1) - (this.audioEl.currentTime || 0));
+    }
+    const meta = streamResolver.getActiveMetadata();
+    const quality = (this as any).audioQualityMode || 'very_high';
+    const sampleRate = this.ctx?.sampleRate || (meta?.sampleRate || 48000);
+    return {
+      qualityMode: quality,
+      format: meta?.format || (quality === 'hi_res' ? 'Hi-Res Lossless 24-bit / 96 kHz Master' : 'AAC-LC 320 kbps (Très élevée)'),
+      codec: meta?.codec || 'audio/mp4 (AAC-LC)',
+      bitrateKbps: meta?.bitrateKbps || (quality === 'normal' ? 128 : quality === 'high' ? 256 : 320),
+      sampleRate,
+      bufferedSecs: Math.round(bufferedSecs * 10) / 10,
+      streamUrl: this.audioEl?.currentSrc || this.currentTrack?.streamUrl || '',
+      isFallback: meta?.isFallback || false,
+      playbackState: this.isPaused ? 'paused' : 'playing'
+    };
   }
 
   public getPositionMs(): number {

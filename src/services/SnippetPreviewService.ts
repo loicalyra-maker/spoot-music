@@ -110,7 +110,7 @@ class SnippetPreviewService {
       track.title,
       (track as any).youtubeId
     );
-    const proxied = fullUrl.includes('googlevideo.com')
+    const proxied = (fullUrl.includes('googlevideo.com') && !fullUrl.startsWith('/api/stream-audio'))
       ? `/api/stream-audio?url=${encodeURIComponent(fullUrl)}`
       : fullUrl;
     const res = { url: proxied, startSec: 60, durationSec: 20 };

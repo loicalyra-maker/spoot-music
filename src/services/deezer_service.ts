@@ -175,7 +175,7 @@ export class DeezerService {
    * Mappe un titre Deezer vers le format interne Track
    */
   public mapDeezerTrack(t: any, fallbackCover?: string, playCountOverride?: number): Track {
-    const coverHd = t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || fallbackCover || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg';
+    const coverHd = t.album?.cover_xl || t.album?.cover_big || t.album?.cover_medium || fallbackCover || '/default-cover.jpg';
     const artistName = t.artist?.name || (typeof t.artist === 'string' ? t.artist : 'Artiste Inconnu');
     const artistId = String(t.artist?.id || '0');
     const albumId = String(t.album?.id || '0');
@@ -324,7 +324,7 @@ export class DeezerService {
             title: alb.title,
             artistId: String(alb.artist?.id || '0'),
             artistName: alb.artist?.name || 'Artiste',
-            coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+            coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium || '/default-cover.jpg',
             releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
             type: (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album') as any,
             trackCount: alb.nb_tracks || 12,
@@ -880,7 +880,7 @@ export class DeezerService {
       title: alb.title,
       artistId: cleanId,
       artistName: alb.artist?.name || this.artistCache.get(cleanId)?.name || 'Artiste',
-      coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+      coverUrl: alb.cover_xl || alb.cover_big || alb.cover_medium || '/default-cover.jpg',
       releaseYear: alb.release_date ? parseInt(alb.release_date.split('-')[0], 10) : 2024,
       type: forcedType || (alb.record_type === 'single' ? 'single' : alb.record_type === 'ep' ? 'ep' : 'album'),
       trackCount: alb.nb_tracks || 10,
@@ -1110,10 +1110,10 @@ export class DeezerService {
         { id: 'sdm-vault-4', title: '8 Réseau (Freestyle Inédit Studio Session)', durationFormatted: '2:50', durationMs: 170000, viewCount: 510000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/640220bd3d80561118391eef3a24fb53/1000x1000-000000-80-0-0.jpg' }
       ],
       'tiakola': [
-        { id: 'tia-vault-1', title: 'BDLM (Solo Studio Cut Demo)', durationFormatted: '3:12', durationMs: 192000, viewCount: 540000 },
-        { id: 'tia-vault-2', title: 'Mélo Tape (Leak Archive 2024)', durationFormatted: '3:05', durationMs: 185000, viewCount: 410000 },
-        { id: 'tia-vault-3', title: 'La Clé (Acoustic Guitar Session)', durationFormatted: '2:48', durationMs: 168000, viewCount: 690000 },
-        { id: 'tia-vault-4', title: 'Mode Avion (Inédit Studio Session)', durationFormatted: '2:52', durationMs: 172000, viewCount: 450000 }
+        { id: 'tia-vault-1', title: 'BDLM (Solo Studio Cut Demo)', durationFormatted: '3:12', durationMs: 192000, viewCount: 540000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/af056d5fa6167cfd1917dc0e08c11083/1000x1000-000000-80-0-0.jpg' },
+        { id: 'tia-vault-2', title: 'Mélo Tape (Leak Archive 2024)', durationFormatted: '3:05', durationMs: 185000, viewCount: 410000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/af056d5fa6167cfd1917dc0e08c11083/1000x1000-000000-80-0-0.jpg' },
+        { id: 'tia-vault-3', title: 'La Clé (Acoustic Guitar Session)', durationFormatted: '2:48', durationMs: 168000, viewCount: 690000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/af056d5fa6167cfd1917dc0e08c11083/1000x1000-000000-80-0-0.jpg' },
+        { id: 'tia-vault-4', title: 'Mode Avion (Inédit Studio Session)', durationFormatted: '2:52', durationMs: 172000, viewCount: 450000, coverUrl: 'https://cdn-images.dzcdn.net/images/cover/af056d5fa6167cfd1917dc0e08c11083/1000x1000-000000-80-0-0.jpg' }
       ],
       'gazo': [
         { id: 'gz-vault-1', title: 'Drill FR (Maquette Studio Exclusive)', durationFormatted: '3:10', durationMs: 190000, viewCount: 680000 },

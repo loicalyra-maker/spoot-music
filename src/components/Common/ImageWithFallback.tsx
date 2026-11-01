@@ -1,6 +1,6 @@
 // Spoot Music — ImageWithFallback.tsx
 // Composant d'image haute résilience : protection anti-CORS/Referrer, zéro pochette cassée,
-// et fallback SVG vectoriel thématique élégant.
+// et fallback systématique élégant avec l'illustration dédiée.
 
 import React, { useState } from 'react';
 import { Music2 } from 'lucide-react';
@@ -12,7 +12,7 @@ interface ImageWithFallbackProps extends React.ImgHTMLAttributes<HTMLImageElemen
 
 export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
   src,
-  fallbackSrc,
+  fallbackSrc = '/default-cover.jpg',
   alt = 'Pochette',
   className = '',
   iconClassName = 'w-1/3 h-1/3 opacity-40',

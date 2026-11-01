@@ -11,7 +11,7 @@ import { useThemeStore } from '../../store/useThemeStore';
 import { deezerService, DeezerPodcast, DeezerEpisode } from '../../services/deezer_service';
 import { Track } from '../../types';
 import { useHomeLayoutStore, HomeWidget } from '../../store/useHomeLayoutStore';
-import { HomeCustomizerModal } from './HomeCustomizerModal';
+
 import { ImageWithFallback } from '../Common/ImageWithFallback';
 import { Sliders } from 'lucide-react';
 
@@ -274,7 +274,7 @@ export const HomeView: React.FC = () => {
       title: 'Guy2Bezbar',
       artistName: 'Guy2Bezbar',
       artistId: '11026886',
-      coverUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+      coverUrl: '/default-cover.jpg',
       trackTitle: 'Monaco',
     },
     {
@@ -1586,8 +1586,6 @@ export const HomeView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal de personnalisation modulaire (home_layout.json) */}
-      <HomeCustomizerModal />
     </div>
   );
 };

@@ -163,7 +163,7 @@ export const ExpandedPlayer: React.FC = () => {
     }
   };
 
-  const fallbackCover = 'https://cdn-images.dzcdn.net/images/cover/c028acc15f911c6ca3ff821abbb64aa3/1000x1000-000000-80-0-0.jpg';
+  const fallbackCover = '/default-cover.jpg';
   const coverSrc = (!imageError && currentTrack.coverUrl) ? currentTrack.coverUrl : fallbackCover;
 
   return (

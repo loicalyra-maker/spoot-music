@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useSpootStore } from '../../store/useSpootStore';
 import { useThemeStore } from '../../store/useThemeStore';
+import { AudioInspector } from '../Player/AudioInspector';
 
 export const SettingsView: React.FC = () => {
   const themeStore = useThemeStore();
@@ -183,6 +184,9 @@ export const SettingsView: React.FC = () => {
               </button>
             ))}
           </div>
+
+          {/* Inspecteur de Qualité Audio & Banc de Test en Direct */}
+          <AudioInspector />
         </div>
 
         {/* Normalisation du volume */}

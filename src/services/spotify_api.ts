@@ -181,7 +181,7 @@ class SpotifyApiClient {
           artistName: item.artists?.map((a: any) => a.name).join(', ') || 'Artiste inconnu',
           albumId: item.album?.id || 'unknown',
           albumTitle: item.album?.name || item.name,
-          coverUrl: item.album?.images?.[0]?.url || item.album?.images?.[1]?.url || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+          coverUrl: item.album?.images?.[0]?.url || item.album?.images?.[1]?.url || '/default-cover.jpg',
           durationMs: item.duration_ms || 180000,
           sampleRate: 96000,
           bitDepth: 24,
@@ -213,7 +213,7 @@ class SpotifyApiClient {
         const artists: Artist[] = (data.artists?.items || []).map((item: any) => ({
           id: item.id,
           name: item.name,
-          avatarUrl: item.images?.[0]?.url || item.images?.[1]?.url || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+          avatarUrl: item.images?.[0]?.url || item.images?.[1]?.url || '/default-cover.jpg',
           monthlyListeners: item.followers?.total || 150000,
           bio: `Artiste officiel Spotify • Genres: ${(item.genres || []).slice(0, 3).join(', ') || 'Général'}`,
           isFollowed: false,
@@ -226,7 +226,7 @@ class SpotifyApiClient {
           title: item.name,
           artistId: item.artists?.[0]?.id || 'unknown',
           artistName: item.artists?.[0]?.name || 'Artiste',
-          coverUrl: item.images?.[0]?.url || item.images?.[1]?.url || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+          coverUrl: item.images?.[0]?.url || item.images?.[1]?.url || '/default-cover.jpg',
           releaseYear: item.release_date ? parseInt(item.release_date.split('-')[0], 10) : 2024,
           type: item.album_type === 'single' ? 'single' : 'album',
           trackCount: item.total_tracks || 1,
@@ -239,7 +239,7 @@ class SpotifyApiClient {
           title: item.name,
           publisher: item.publisher || 'Spotify Show',
           description: item.description || '',
-          coverUrl: item.images?.[0]?.url || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+          coverUrl: item.images?.[0]?.url || '/default-cover.jpg',
           totalEpisodes: item.total_episodes || 0,
           episodes: [],
         }));
@@ -249,7 +249,7 @@ class SpotifyApiClient {
           title: item.name,
           description: item.description || '',
           showTitle: 'Podcast Spotify',
-          coverUrl: item.images?.[0]?.url || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+          coverUrl: item.images?.[0]?.url || '/default-cover.jpg',
           durationMs: item.duration_ms || 1800000,
           releaseDate: item.release_date || '',
           audioUrl: item.audio_preview_url || undefined,
@@ -298,7 +298,7 @@ class SpotifyApiClient {
               artistName: item.artist?.name || 'Artiste',
               albumId: `dz-alb-${item.album?.id || idx}`,
               albumTitle: item.album?.title || item.title,
-              coverUrl: cover || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+              coverUrl: cover || '/default-cover.jpg',
               durationMs: (item.duration || 180) * 1000,
               sampleRate: 96000,
               bitDepth: 24,
@@ -331,7 +331,7 @@ class SpotifyApiClient {
               artistMap.set(item.artist.id, {
                 id: `dz-art-${item.artist.id}`,
                 name: item.artist.name,
-                avatarUrl: artistPic || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+                avatarUrl: artistPic || '/default-cover.jpg',
                 monthlyListeners: 2500000,
                 bio: `Artiste certifié officiel • Catalogue officiel Spoot & Spotify`,
                 isFollowed: false,
@@ -346,7 +346,7 @@ class SpotifyApiClient {
                 title: item.album.title,
                 artistId: `dz-art-${item.artist?.id || 'unknown'}`,
                 artistName: item.artist?.name || 'Artiste',
-                coverUrl: cover || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+                coverUrl: cover || '/default-cover.jpg',
                 releaseYear: 2024,
                 type: 'album',
                 trackCount: 12,
@@ -376,7 +376,7 @@ class SpotifyApiClient {
               title: p.title,
               publisher: p.description || 'Émission Officielle',
               description: p.description || `Retrouvez tous les épisodes de ${p.title} en streaming haute fidélité.`,
-              coverUrl: p.picture_xl || p.picture_big || p.picture_medium || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+              coverUrl: p.picture_xl || p.picture_big || p.picture_medium || '/default-cover.jpg',
               totalEpisodes: p.fans || 42,
               episodes: [
                 {
@@ -384,7 +384,7 @@ class SpotifyApiClient {
                   title: `Épisode Récent : ${p.title}`,
                   description: p.description || 'Dernier numéro exclusif Spoot & Spotify',
                   showTitle: p.title,
-                  coverUrl: p.picture_xl || p.picture_big || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+                  coverUrl: p.picture_xl || p.picture_big || '/default-cover.jpg',
                   durationMs: 1920000,
                   releaseDate: 'Aujourd\'hui',
                   audioUrl: undefined,
@@ -406,7 +406,7 @@ class SpotifyApiClient {
           const itunesJson = await itunesRes.json();
           if (itunesJson.results && Array.isArray(itunesJson.results)) {
             itunesJson.results.forEach((item: any, idx: number) => {
-              const coverHd = item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '1000x1000bb') : 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg';
+              const coverHd = item.artworkUrl100 ? item.artworkUrl100.replace('100x100bb', '1000x1000bb') : '/default-cover.jpg';
               tracks.push({
                 id: `it-${item.trackId || idx}`,
                 isrc: `US-APL-${item.trackId || idx}`,
@@ -464,21 +464,21 @@ class SpotifyApiClient {
         return data.categories.items.map((cat: any) => ({
           id: cat.id,
           name: cat.name,
-          iconUrl: cat.icons?.[0]?.url || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+          iconUrl: cat.icons?.[0]?.url || '/default-cover.jpg',
         }));
       }
     }
 
     // Catégories officielles Spotify par défaut
     return [
-      { id: 'hiphop', name: 'Hip-hop', iconUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg' },
-      { id: 'indie_alt', name: 'Indie', iconUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg' },
-      { id: 'synthwave', name: 'Synthwave', iconUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg' },
-      { id: 'electro', name: 'Électro', iconUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg' },
-      { id: 'rock', name: 'Rock', iconUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg' },
-      { id: 'focus', name: 'Focus', iconUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg' },
-      { id: 'pop', name: 'Pop', iconUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg' },
-      { id: 'hires', name: 'Hi-Res Audiophile', iconUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg' },
+      { id: 'hiphop', name: 'Hip-hop', iconUrl: '/default-cover.jpg' },
+      { id: 'indie_alt', name: 'Indie', iconUrl: '/default-cover.jpg' },
+      { id: 'synthwave', name: 'Synthwave', iconUrl: '/default-cover.jpg' },
+      { id: 'electro', name: 'Électro', iconUrl: '/default-cover.jpg' },
+      { id: 'rock', name: 'Rock', iconUrl: '/default-cover.jpg' },
+      { id: 'focus', name: 'Focus', iconUrl: '/default-cover.jpg' },
+      { id: 'pop', name: 'Pop', iconUrl: '/default-cover.jpg' },
+      { id: 'hires', name: 'Hi-Res Audiophile', iconUrl: '/default-cover.jpg' },
     ];
   }
 
@@ -493,7 +493,7 @@ class SpotifyApiClient {
           id: p.id,
           name: p.name,
           description: p.description || '',
-          coverUrl: p.images?.[0]?.url || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+          coverUrl: p.images?.[0]?.url || '/default-cover.jpg',
           trackCount: p.tracks?.total || 50,
         }));
       }
@@ -506,21 +506,21 @@ class SpotifyApiClient {
         id: `pl-${categoryId}-1`,
         name: `Top ${categoryName} Mondial`,
         description: `Les 50 titres les plus streamés de la scène ${categoryName} sur Spotify & Spoot.`,
-        coverUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+        coverUrl: '/default-cover.jpg',
         trackCount: 50,
       },
       {
         id: `pl-${categoryId}-2`,
         name: `${categoryName} Classics & Essentials`,
         description: `Les chefs d'œuvre intemporels qui ont forgé le genre.`,
-        coverUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+        coverUrl: '/default-cover.jpg',
         trackCount: 65,
       },
       {
         id: `pl-${categoryId}-3`,
         name: `Découvertes ${categoryName}`,
         description: `Nouvelles pépites émergentes actualisées chaque vendredi.`,
-        coverUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+        coverUrl: '/default-cover.jpg',
         trackCount: 30,
       },
     ];
@@ -549,7 +549,7 @@ class SpotifyApiClient {
           artistName: item.artists?.map((a: any) => a.name).join(', ') || 'Artiste recommandé',
           albumId: item.album?.id || 'unknown',
           albumTitle: item.album?.name || item.name,
-          coverUrl: item.album?.images?.[0]?.url || item.album?.images?.[1]?.url || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg',
+          coverUrl: item.album?.images?.[0]?.url || item.album?.images?.[1]?.url || '/default-cover.jpg',
           durationMs: item.duration_ms || 190000,
           sampleRate: 96000,
           bitDepth: 24,

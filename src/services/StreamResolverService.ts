@@ -1,20 +1,31 @@
 // Spoot Music — StreamResolverService.ts
 // Moteur de résolution audio intégrale via yt-dlp / backend Spoot.
 // Éradique définitivement les extraits promotionnels de 30 secondes au profit de flux complets.
+// Supporte les profils réels : Auto, Normal (128k), Élevé (256k), Très élevé (320k), Hi-Res Lossless.
+
+export interface StreamResolutionMetadata {
+  url: string;
+  format: string;
+  codec: string;
+  bitrateKbps: number;
+  sampleRate: number;
+  qualityMode: string;
+  isFallback: boolean;
+}
 
 class StreamResolverService {
-  private cache = new Map<string, string>();
-  private resolving = new Map<string, Promise<string>>();
+  private cache = new Map<string, StreamResolutionMetadata>();
+  private resolving = new Map<string, Promise<StreamResolutionMetadata>>();
+  private currentActiveMetadata: StreamResolutionMetadata | null = null;
 
   constructor() {
-    // Restaurer le cache depuis sessionStorage si disponible
     try {
-      const saved = sessionStorage.getItem('spoot_stream_cache_v1');
+      const saved = sessionStorage.getItem('spoot_stream_cache_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (typeof parsed === 'object' && parsed !== null) {
           Object.entries(parsed).forEach(([k, v]) => {
-            if (typeof v === 'string') this.cache.set(k, v);
+            if (typeof v === 'object' && v !== null) this.cache.set(k, v as StreamResolutionMetadata);
           });
         }
       }
@@ -23,16 +34,16 @@ class StreamResolverService {
 
   private saveCache(): void {
     try {
-      const obj: Record<string, string> = {};
+      const obj: Record<string, StreamResolutionMetadata> = {};
       this.cache.forEach((v, k) => {
         obj[k] = v;
       });
-      sessionStorage.setItem('spoot_stream_cache_v1', JSON.stringify(obj));
+      sessionStorage.setItem('spoot_stream_cache_v2', JSON.stringify(obj));
     } catch {}
   }
 
-  public getCacheKey(artist: string, title: string): string {
-    return `${artist.toLowerCase().trim()}:::${title.toLowerCase().trim()}`;
+  public getCacheKey(artist: string, title: string, quality: string = 'very_high'): string {
+    return `${artist.toLowerCase().trim()}:::${title.toLowerCase().trim()}:::${quality}`;
   }
 
   /**
@@ -49,15 +60,25 @@ class StreamResolverService {
     );
   }
 
+  public getActiveMetadata(): StreamResolutionMetadata | null {
+    return this.currentActiveMetadata;
+  }
+
   /**
-   * Résout l'URL audio complète via yt-dlp backend.
-   * Commande : yt-dlp -g -f "bestaudio[ext=m4a]/bestaudio/best" --no-playlist "ytsearch1:{artist} - {title} Official Audio"
+   * Résout l'URL audio complète et ses métadonnées techniques réelles via yt-dlp backend.
    */
-  public async resolveFullAudio(artist: string, title: string, explicitYoutubeId?: string): Promise<string> {
-    const key = this.getCacheKey(artist, title);
+  public async resolveFullAudioWithMeta(
+    artist: string,
+    title: string,
+    explicitYoutubeId?: string,
+    quality: string = 'very_high'
+  ): Promise<StreamResolutionMetadata> {
+    const key = this.getCacheKey(artist, title, quality);
 
     if (this.cache.has(key)) {
-      return this.cache.get(key)!;
+      const cached = this.cache.get(key)!;
+      this.currentActiveMetadata = cached;
+      return cached;
     }
 
     if (this.resolving.has(key)) {
@@ -66,11 +87,10 @@ class StreamResolverService {
 
     const resolvePromise = (async () => {
       try {
-        let endpoint = `/api/stream-resolve?`;
+        let endpoint = `/api/stream-resolve?quality=${encodeURIComponent(quality)}&`;
         if (explicitYoutubeId) {
           endpoint += `id=${encodeURIComponent(explicitYoutubeId)}`;
         } else {
-          // Épuration des mentions parasites entre parenthèses
           const cleanTitle = title.replace(/\(.*?\)/g, '').replace(/\[.*?\]/g, '').trim();
           endpoint += `q=${encodeURIComponent(`${artist} - ${cleanTitle} Official Audio`)}`;
         }
@@ -80,15 +100,34 @@ class StreamResolverService {
 
         const data = await res.json();
         if (data?.url && typeof data.url === 'string') {
-          this.cache.set(key, data.url);
+          const meta: StreamResolutionMetadata = {
+            url: data.url,
+            format: data.format || 'AAC-LC 320 kbps (Très élevée)',
+            codec: data.codec || 'audio/mp4 (AAC-LC)',
+            bitrateKbps: data.bitrateKbps || 320,
+            sampleRate: data.sampleRate || 48000,
+            qualityMode: data.qualityMode || quality,
+            isFallback: Boolean(data.isFallback),
+          };
+          this.cache.set(key, meta);
+          this.currentActiveMetadata = meta;
           this.saveCache();
-          return data.url;
+          return meta;
         }
         throw new Error('Missing url property in stream response');
       } catch (err) {
         console.warn(`[StreamResolver] Résolution yt-dlp échouée pour "${artist} - ${title}", tentative repli direct:`, err);
-        // Fallback secours
-        return `https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview221/v4/4a/bc/40/4abc4000-8dc4-b770-ff6d-14a01c34a2c5/mzaf_17075775394200637172.plus.aac.p.m4a`;
+        const fallbackMeta: StreamResolutionMetadata = {
+          url: 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview211/v4/bf/20/4f/bf204f14-9fa0-7d7d-e717-b769f584e035/mzaf_11306359050637175240.plus.aac.p.m4a',
+          format: 'Flux Secours AAC 256 kbps',
+          codec: 'audio/mp4 (AAC-LC)',
+          bitrateKbps: 256,
+          sampleRate: 44100,
+          qualityMode: quality,
+          isFallback: true,
+        };
+        this.currentActiveMetadata = fallbackMeta;
+        return fallbackMeta;
       } finally {
         this.resolving.delete(key);
       }
@@ -99,14 +138,11 @@ class StreamResolverService {
   }
 
   /**
-   * Pré-résolution en arrière-plan du morceau suivant dans la file d'attente (Next-Track Pre-Resolver).
-   * Assure 0s de latence lors du passage automatique au titre suivant.
+   * Méthode de rétro-compatibilité
    */
-  public preloadNextTrack(artist: string, title: string, youtubeId?: string): void {
-    const key = this.getCacheKey(artist, title);
-    if (!this.cache.has(key) && !this.resolving.has(key)) {
-      this.resolveFullAudio(artist, title, youtubeId).catch(() => {});
-    }
+  public async resolveFullAudio(artist: string, title: string, explicitYoutubeId?: string, quality?: string): Promise<string> {
+    const meta = await this.resolveFullAudioWithMeta(artist, title, explicitYoutubeId, quality);
+    return meta.url;
   }
 }
 

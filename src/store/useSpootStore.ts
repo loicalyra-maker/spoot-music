@@ -816,7 +816,7 @@ export const useSpootStore = create<SpootState>((set, get) => {
         id: `pl-${Date.now()}`,
         title: finalTitle,
         description: 'Playlist personnalisée créée dans Spoot Music.',
-        coverUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/500x500-000000-80-0-0.jpg',
+        coverUrl: '/default-cover.jpg',
         ownerName: 'slowii',
         parentFolderId: parentFolderId || null,
         isCollaborative: false,

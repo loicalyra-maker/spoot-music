@@ -1,8 +1,10 @@
 // Spoot Music — Mobile Native iPhone Mini Player Component (MobileMiniPlayer.tsx)
 // Faithful to Spotify iOS 26: Floating Glass Island Docked Above Bottom Nav Bar
+// Réactif à 100% à la couleur d'accentuation dynamique (--accent-color / --accent-rgb)
 import React from 'react';
 import { Play, Pause, Heart, Speaker } from 'lucide-react';
 import { useSpootStore } from '../../store/useSpootStore';
+import { ImageWithFallback } from '../Common/ImageWithFallback';
 
 export const MobileMiniPlayer: React.FC = () => {
   const {
@@ -13,6 +15,7 @@ export const MobileMiniPlayer: React.FC = () => {
     durationMs,
     setExpandedPlayerOpen,
     setDevicePickerOpen,
+    toggleFavorite,
   } = useSpootStore();
 
   if (!currentTrack) return null;
@@ -25,14 +28,18 @@ export const MobileMiniPlayer: React.FC = () => {
       onClick={() => setExpandedPlayerOpen(true)}
       style={{
         bottom: 'calc(3.8rem + max(env(safe-area-inset-bottom, 12px), 12px))',
+        background: 'rgba(16, 17, 20, 0.94)',
+        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.7), 0 0 20px rgba(var(--accent-rgb, 0, 230, 118), 0.15)',
+        border: '1px solid rgba(255, 255, 255, 0.14)',
       }}
-      className="fixed left-2 right-2 z-40 rounded-xl overflow-hidden cursor-pointer select-none transition-all active:scale-[0.99] border border-white/15 bg-[#0a1824]/90 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.5)]"
+      className="fixed left-2 right-2 z-40 rounded-xl overflow-hidden cursor-pointer select-none transition-all active:scale-[0.99] backdrop-blur-2xl"
     >
       <div className="flex items-center justify-between px-2.5 py-1.5 gap-2.5">
-        {/* 1. Pochette Carrée HD */}
+        {/* 1. Pochette Carrée HD avec Fallback élégant */}
         <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-white/10 shadow-sm border border-white/10">
-          <img
+          <ImageWithFallback
             src={currentTrack.coverUrl}
+            fallbackSrc="/default-cover.jpg"
             alt={currentTrack.title}
             className="w-full h-full object-cover"
           />
@@ -43,7 +50,10 @@ export const MobileMiniPlayer: React.FC = () => {
           <p className="text-xs font-bold text-white truncate leading-tight">
             {currentTrack.title}
           </p>
-          <p className="text-[11px] text-cyan-200/70 truncate mt-0.5">
+          <p
+            className="text-[11px] truncate mt-0.5 font-medium transition-colors"
+            style={{ color: 'var(--accent-color, #00e676)' }}
+          >
             {currentTrack.artistName}
           </p>
         </div>
@@ -55,17 +65,21 @@ export const MobileMiniPlayer: React.FC = () => {
             className="p-2 text-white/70 hover:text-white transition-colors cursor-pointer"
             title="Spoot Connect • Appareils"
           >
-            <Speaker className="w-4 h-4 text-cyan-300" />
+            <Speaker
+              className="w-4 h-4 transition-colors"
+              style={{ color: 'var(--accent-color, #00e676)' }}
+            />
           </button>
 
           <button
-            onClick={() => {
-              // Toggle favori
-            }}
+            onClick={() => toggleFavorite(currentTrack.id)}
             className="p-2 text-white/70 hover:text-white transition-colors cursor-pointer"
             title="Ajouter aux favoris"
           >
-            <Heart className={`w-4 h-4 ${currentTrack.isFavorite ? 'fill-cyan-400 text-cyan-400' : ''}`} />
+            <Heart
+              className={`w-4 h-4 transition-colors ${currentTrack.isFavorite ? 'fill-current' : ''}`}
+              style={currentTrack.isFavorite ? { color: 'var(--accent-color, #00e676)' } : undefined}
+            />
           </button>
 
           <button
@@ -82,11 +96,15 @@ export const MobileMiniPlayer: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Barre de Progression Inférieure Sleek 2.5px */}
+      {/* 4. Barre de Progression Inférieure Sleek 2.5px réactive à l'accent */}
       <div className="w-full h-[2.5px] bg-white/15 relative">
         <div
-          className="h-full bg-gradient-to-r from-cyan-400 to-sky-400 rounded-full transition-all duration-200"
-          style={{ width: `${progressPercent}%` }}
+          className="h-full rounded-full transition-all duration-200"
+          style={{
+            width: `${progressPercent}%`,
+            backgroundColor: 'var(--accent-color, #00e676)',
+            boxShadow: '0 0 8px var(--accent-color, #00e676)',
+          }}
         />
       </div>
     </div>

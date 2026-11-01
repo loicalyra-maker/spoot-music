@@ -126,7 +126,7 @@ export const DEFAULT_HOME_SLOTS: HomeSlot[] = [
     title: 'Daily Mix 01',
     subtitle: 'SDM, Tiakola, Guy2Bezbar, Gazo',
     targetId: 'mix-1',
-    customImageUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/500x500-000000-80-0-0.jpg',
+    customImageUrl: '/default-cover.jpg',
   },
   {
     slotId: 'slot-2',

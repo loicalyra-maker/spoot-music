@@ -236,7 +236,7 @@ export const PlaylistView: React.FC = () => {
         ) : (
           <div className="w-52 h-52 lg:w-60 lg:h-60 rounded-xl overflow-hidden shadow-[0_16px_36px_rgba(0,0,0,0.6)] shrink-0 bg-[#282828]">
             <img
-              src={playlist.coverUrl || 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/1000x1000-000000-80-0-0.jpg'}
+              src={playlist.coverUrl || '/default-cover.jpg'}
               alt={playlist.title}
               className="w-full h-full object-cover"
             />

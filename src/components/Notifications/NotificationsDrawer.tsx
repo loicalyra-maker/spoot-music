@@ -144,7 +144,7 @@ export const NotificationsDrawer: React.FC<NotificationsDrawerProps> = ({
             item.cover_xl ||
             item.cover_big ||
             item.cover_medium ||
-            'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/500x500-000000-80-0-0.jpg',
+            '/default-cover.jpg',
           releaseDate: item.release_date || '',
           relativeDate: formatRelativeReleaseDate(item.release_date, cleanReleases.length),
           isRead: readSet.has(`rel-${idStr}`),

@@ -58,3 +58,10 @@ html.spoot-power-suspended canvas {
   overscroll-behavior-y: contain;
   scroll-behavior: smooth;
 }
+
+/* Révélation du fond d'écran personnalisé sous le conteneur principal */
+:root[data-has-custom-wallpaper="true"] main,
+:root[data-has-custom-wallpaper="true"] #root,
+.theme-pure-black[data-has-custom-wallpaper="true"] main {
+  background-color: transparent !important;
+}

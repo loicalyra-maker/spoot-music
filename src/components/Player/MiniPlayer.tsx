@@ -168,7 +168,7 @@ export const MiniPlayer: React.FC = () => {
           }`}
           title={currentTrack.isFavorite ? 'Retirer des titres likés' : 'Ajouter aux titres likés'}
         >
-          <Heart className={`w-4 h-4 ${currentTrack.isFavorite ? 'fill-cyan-400' : ''}`} />
+          <Heart className={`w-4 h-4 ${currentTrack.isFavorite ? 'fill-current' : ''}`} style={currentTrack.isFavorite ? { color: 'var(--accent-color, #00e676)' } : undefined} />
         </button>
       </div>
 
@@ -180,7 +180,7 @@ export const MiniPlayer: React.FC = () => {
           <button
             onClick={cycleShuffleMode}
             className={`p-1.5 transition-colors cursor-pointer relative ${
-              shuffleMode !== 'Off' ? 'text-cyan-400' : 'text-white/60 hover:text-white'
+              shuffleMode !== 'Off' ? '' : 'text-white/60 hover:text-white'
             }`}
             title="Lecture aléatoire"
           >
@@ -325,7 +325,7 @@ export const MiniPlayer: React.FC = () => {
             step="0.01"
             value={volume}
             onChange={(e) => setVolume(parseFloat(e.target.value))}
-            className="w-20 h-1 bg-white/20 accent-white hover:accent-cyan-400 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md transition-all"
+            className="w-20 h-1 bg-white/20 accent-white hover:accent-[var(--accent-color,#00e676)] rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:w-2.5 [&::-webkit-slider-thumb]:h-2.5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-md transition-all"
           />
         </div>
 

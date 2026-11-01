@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { useHomeLayoutStore, HomeSlot } from '../../store/useHomeLayoutStore';
 import { useSpootStore } from '../../store/useSpootStore';
+import { useThemeStore } from '../../store/useThemeStore';
+import { Image as ImageIcon, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { powerManager } from '../../services/PowerManager';
 import { streamBufferPolicy } from '../../services/StreamBufferPolicy';
 
@@ -33,8 +35,46 @@ export const HomeCustomizerModal: React.FC = () => {
   } = useHomeLayoutStore();
 
   const { playlists } = useSpootStore();
+  const themeStore = useThemeStore();
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'slots' | 'widgets' | 'power'>('slots');
+  const handleImageFile = (file: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      if (!result) return;
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1920;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.82);
+          themeStore.setBackgroundImageUrl(compressed);
+        }
+      };
+      img.src = result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+
+  const [activeTab, setActiveTab] = useState<'slots' | 'widgets' | 'wallpaper' | 'power'>('slots');
   const [editingSlotId, setEditingSlotId] = useState<string | null>(null);
   const [artistQuery, setArtistQuery] = useState('');
   const [artistResults, setArtistResults] = useState<any[]>([]);
@@ -100,7 +140,7 @@ export const HomeCustomizerModal: React.FC = () => {
         title: `Daily Mix 0${(idx % 4) + 1}`,
         subtitle: 'Sélection dynamique Hi-Res',
         targetId: `mix-${(idx % 4) + 1}`,
-        customImageUrl: 'https://cdn-images.dzcdn.net/images/cover/4e6b43dbc7c9bc398d6a816b34419e8a/500x500-000000-80-0-0.jpg',
+        customImageUrl: '/default-cover.jpg',
       });
     } else if (presetType === 'recent_releases') {
       updateSlot(slotId, {
@@ -183,6 +223,17 @@ export const HomeCustomizerModal: React.FC = () => {
           >
             <Sliders className="w-3.5 h-3.5" />
             <span>Sections</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('wallpaper')}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+              activeTab === 'wallpaper'
+                ? 'bg-purple-400 text-black shadow-[0_0_15px_rgba(168,85,247,0.4)]'
+                : 'bg-white/5 text-white/70 hover:text-white'
+            }`}
+          >
+            <ImageIcon className="w-3.5 h-3.5" />
+            <span>Fond d'Écran</span>
           </button>
           <button
             onClick={() => setActiveTab('power')}
@@ -416,6 +467,139 @@ export const HomeCustomizerModal: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeTab === 'wallpaper' && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-cyan-300" />
+                      <span>Arrière-Plan Personnalisé</span>
+                    </h4>
+                    <p className="text-xs text-white/50">
+                      Importez une image pour l'écran d'accueil avec compression matérielle GPU
+                    </p>
+                  </div>
+                  {themeStore.backgroundImageUrl && (
+                    <button
+                      onClick={() => themeStore.setBackgroundImageUrl(null)}
+                      className="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[11px] font-bold flex items-center gap-1 transition-colors"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Supprimer</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Zone de Drag & Drop / Input File */}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleImageFile(f);
+                  }}
+                  accept="image/*"
+                  className="hidden"
+                />
+
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) handleImageFile(f);
+                  }}
+                  className="border-2 border-dashed border-white/15 hover:border-cyan-400/50 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 bg-white/[0.02] hover:bg-white/[0.05] cursor-pointer transition-all"
+                >
+                  {themeStore.backgroundImageUrl ? (
+                    <div className="w-full flex items-center gap-4">
+                      <div className="w-20 h-20 rounded-xl overflow-hidden border border-white/20 shrink-0">
+                        <img
+                          src={themeStore.backgroundImageUrl}
+                          alt="Aperçu fond d'écran"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="space-y-1 text-left">
+                        <span className="text-xs font-bold text-white block">Image de fond active</span>
+                        <span className="text-[11px] text-cyan-300 block">Cliquez ou glissez pour remplacer</span>
+                        <span className="text-[10px] text-white/40 block">Compressé en direct (zéro lag)</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="w-10 h-10 rounded-full bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center text-cyan-300">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <span className="text-xs font-bold text-white">Glissez une image ici ou parcourez vos fichiers</span>
+                      <span className="text-[10px] text-white/40">JPG, PNG, WebP (Optimisé jusqu'à 1080p)</span>
+                    </>
+                  )}
+                </div>
+
+                {/* Presets rapides avec les illustrations Sasuke */}
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[11px] font-bold text-white/60 block">Tester immédiatement nos illustrations d'ambiance :</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => themeStore.setBackgroundImageUrl('/assets/default-cover.jpg')}
+                      className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-white text-left transition-colors flex items-center gap-2"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-purple-400" />
+                      <span>Sasuke (Aura Violette)</span>
+                    </button>
+                    <button
+                      onClick={() => themeStore.setBackgroundImageUrl('/assets/wallpaper-sample.jpg')}
+                      className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-white text-left transition-colors flex items-center gap-2"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-blue-400" />
+                      <span>Sasuke (Posture Combat)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sliders de réglage : Assombrissement & Flou */}
+                <div className="space-y-3 pt-2 border-t border-white/5">
+                  {/* Slider Assombrissement */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-white/70">Assombrissement du fond</span>
+                      <span className="font-mono text-cyan-300 font-bold">{Math.round((themeStore.backgroundOpacity ?? 0.35) * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.05"
+                      max="0.85"
+                      step="0.05"
+                      value={themeStore.backgroundOpacity ?? 0.35}
+                      onChange={(e) => themeStore.setBackgroundOpacity(parseFloat(e.target.value))}
+                      className="w-full accent-cyan-400 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Slider Flou d'ambiance */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-white/70">Flou d'ambiance (Backdrop Blur)</span>
+                      <span className="font-mono text-cyan-300 font-bold">{themeStore.backgroundBlur ?? 8} px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="25"
+                      step="1"
+                      value={themeStore.backgroundBlur ?? 8}
+                      onChange={(e) => themeStore.setBackgroundBlur(parseInt(e.target.value, 10))}
+                      className="w-full accent-cyan-400 cursor-pointer"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
