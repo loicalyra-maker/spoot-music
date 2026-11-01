@@ -1,6 +1,7 @@
 // Spoot Music — Apple iOS 26 / macOS Tahoe Liquid Glass Theme Store
 // Real-time customizer, live miniature sync, tokens & CSS variables orchestration
 import { create } from 'zustand';
+import { setIdbItem, getIdbItem, removeIdbItem } from '../utils/idbStorage';
 
 export interface HomeSectionConfig {
   id: string;
@@ -295,7 +296,16 @@ const loadSavedTheme = (): Partial<ThemeConfig> => {
   if (typeof window === 'undefined') return {};
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.backgroundImageUrl?.startsWith('idb:')) {
+        parsed.backgroundImageUrl = null;
+      }
+      if (parsed.defaultCoverUrl?.startsWith('idb:')) {
+        parsed.defaultCoverUrl = '/default-cover.jpg';
+      }
+      return parsed;
+    }
   } catch (e) {
     console.warn('Could not parse saved theme config:', e);
   }
@@ -305,7 +315,29 @@ const loadSavedTheme = (): Partial<ThemeConfig> => {
 const saveTheme = (config: ThemeConfig) => {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(config));
+    // 1. Sauvegarde asynchrone des gros payloads images dans IndexedDB (contourne la limite de 5 Mo de localStorage)
+    if (config.backgroundImageUrl) {
+      if (config.backgroundImageUrl.startsWith('data:') || config.backgroundImageUrl.length > 500) {
+        setIdbItem('spoot_custom_bg', config.backgroundImageUrl);
+      }
+    } else {
+      removeIdbItem('spoot_custom_bg');
+    }
+
+    if (config.defaultCoverUrl && (config.defaultCoverUrl.startsWith('data:') || config.defaultCoverUrl.length > 500)) {
+      setIdbItem('spoot_default_cover', config.defaultCoverUrl);
+    }
+
+    // 2. Préparer une version allégée pour localStorage (< 50 Ko)
+    const lightweightConfig: Partial<ThemeConfig> = { ...config };
+    if (lightweightConfig.backgroundImageUrl?.startsWith('data:')) {
+      lightweightConfig.backgroundImageUrl = 'idb:spoot_custom_bg';
+    }
+    if (lightweightConfig.defaultCoverUrl?.startsWith('data:')) {
+      lightweightConfig.defaultCoverUrl = 'idb:spoot_default_cover';
+    }
+
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(lightweightConfig));
   } catch (e) {
     console.warn('Could not save theme config:', e);
   }
@@ -396,6 +428,8 @@ export const useThemeStore = create<ThemeState>((set, get) => {
     setBackgroundOpacity: (opacity) => commit({ backgroundOpacity: opacity }),
 
     resetTheme: () => {
+      removeIdbItem('spoot_custom_bg');
+      removeIdbItem('spoot_default_cover');
       const resetConfig: ThemeConfig = {
         themeMode: 'liquid-glass',
         colorPreset: 'emerald',
@@ -489,3 +523,22 @@ export const useThemeStore = create<ThemeState>((set, get) => {
     reorderSections: (sections) => commit({ sections }),
   };
 });
+
+// Hydratation asynchrone des médias haute fidélité depuis IndexedDB
+if (typeof window !== 'undefined') {
+  getIdbItem('spoot_custom_bg').then((savedBg) => {
+    if (savedBg) {
+      useThemeStore.setState({
+        backgroundImageUrl: savedBg,
+        backgroundStyle: 'custom-image',
+      });
+      document.documentElement.setAttribute('data-has-custom-wallpaper', 'true');
+    }
+  }).catch(() => {});
+
+  getIdbItem('spoot_default_cover').then((savedCover) => {
+    if (savedCover) {
+      useThemeStore.setState({ defaultCoverUrl: savedCover });
+    }
+  }).catch(() => {});
+}

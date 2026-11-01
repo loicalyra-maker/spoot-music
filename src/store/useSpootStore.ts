@@ -202,6 +202,32 @@ interface SpootState {
   loadPodcasts: () => Promise<void>;
 }
 
+const LIBRARY_STORAGE_KEY = 'spoot_library_data_v1';
+
+interface SavedLibraryData {
+  playlists?: Playlist[];
+  folders?: PlaylistFolder[];
+  likedTrackIds?: string[];
+  history?: ListeningHistoryItem[];
+}
+
+const loadSavedLibrary = (): SavedLibraryData => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(LIBRARY_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return {};
+};
+
+const saveLibrary = (patch: Partial<SavedLibraryData>) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = loadSavedLibrary();
+    localStorage.setItem(LIBRARY_STORAGE_KEY, JSON.stringify({ ...existing, ...patch }));
+  } catch (e) {}
+};
+
 const loadSavedAudioSettings = (): Record<string, any> => {
   if (typeof window === 'undefined') return {};
   try {
@@ -221,6 +247,8 @@ const saveAudioSettings = (patch: Record<string, any>) => {
 
 export const useSpootStore = create<SpootState>((set, get) => {
   const savedAudio = loadSavedAudioSettings();
+  const savedLibrary = loadSavedLibrary();
+  const initialTrack: Track | null = savedAudio.lastTrack || null;
 
   // Écoute de fin de piste pour enchaînement automatique
   audioCore.setOnTrackEnded(() => {
@@ -271,20 +299,20 @@ export const useSpootStore = create<SpootState>((set, get) => {
     gamerModeActive: false,
     addToPlaylistModalTrack: null,
 
-    // Lecture (Default SDM - CARTIER SANTOS correspondant aux captures 1 & 2)
-    currentTrack: INITIAL_TRACKS[7],
+    // Lecture (Cold boot sans son forcé : restaurer dernière session ou idle)
+    currentTrack: initialTrack,
     playbackStatus: 'Stopped',
-    positionMs: 0,
-    durationMs: INITIAL_TRACKS[7].durationMs,
-    volume: 0.85,
-    shuffleMode: 'TrueRandom',
-    repeatMode: 'Off',
-    activeQueue: [...INITIAL_TRACKS],
-    queueIndex: 7,
+    positionMs: savedAudio.lastPositionMs || 0,
+    durationMs: initialTrack ? (initialTrack.durationMs || 180000) : 0,
+    volume: savedAudio.volume !== undefined ? savedAudio.volume : 0.85,
+    shuffleMode: savedAudio.shuffleMode || 'Off',
+    repeatMode: savedAudio.repeatMode || 'Off',
+    activeQueue: initialTrack ? [initialTrack] : [],
+    queueIndex: 0,
     historyStack: [],
-    unplayedCycle: [...INITIAL_TRACKS],
-    lookaheadBufferedIds: [INITIAL_TRACKS[0].id, INITIAL_TRACKS[1].id, INITIAL_TRACKS[2].id],
-    lastSwitchLatencyMicros: 42,
+    unplayedCycle: initialTrack ? [initialTrack] : [],
+    lookaheadBufferedIds: [],
+    lastSwitchLatencyMicros: 0,
 
     // DSP & Paramètres Spotify Premium (Persistance Réelle)
     audioQuality: savedAudio.audioQuality || 'hi_res',
@@ -309,10 +337,14 @@ export const useSpootStore = create<SpootState>((set, get) => {
     tracks: [...INITIAL_TRACKS],
     albums: [...INITIAL_ALBUMS],
     artists: [...INITIAL_ARTISTS],
-    playlists: [...INITIAL_PLAYLISTS],
-    folders: [
-      { id: 'f-1', name: 'Favoris de Nuit', parentFolderId: null, playlistIds: ['pl-1', 'pl-2'] }
-    ],
+    playlists: (savedLibrary.playlists && savedLibrary.playlists.length > 0)
+      ? savedLibrary.playlists
+      : [...INITIAL_PLAYLISTS],
+    folders: (savedLibrary.folders && savedLibrary.folders.length > 0)
+      ? savedLibrary.folders
+      : [
+          { id: 'f-1', name: 'Favoris de Nuit', parentFolderId: null, playlistIds: ['pl-1', 'pl-2'] }
+        ],
     friends: [...INITIAL_FRIENDS],
     podcasts: [],
     blacklist: [],
@@ -330,29 +362,13 @@ export const useSpootStore = create<SpootState>((set, get) => {
     // Historique d'écoute, Profil & Périphériques
     isHistoryOpen: false,
     setHistoryOpen: (open) => set({ isHistoryOpen: open }),
-    listeningHistory: [
-      {
-        id: 'hist-1',
-        track: INITIAL_TRACKS[7], // CARTIER SANTOS
-        playedAt: Date.now() - 1000 * 60 * 5,
-      },
-      {
-        id: 'hist-2',
-        track: INITIAL_TRACKS[8], // Fille à Papa
-        playedAt: Date.now() - 1000 * 60 * 22,
-      },
-      {
-        id: 'hist-3',
-        track: INITIAL_TRACKS[0], // Monaco
-        playedAt: Date.now() - 1000 * 60 * 54,
-      },
-      {
-        id: 'hist-4',
-        track: INITIAL_TRACKS[1], // PONA NINI
-        playedAt: Date.now() - 1000 * 3600 * 2,
-      }
-    ],
-    clearListeningHistory: () => set({ listeningHistory: [] }),
+    listeningHistory: (savedLibrary.history && savedLibrary.history.length > 0)
+      ? savedLibrary.history
+      : [],
+    clearListeningHistory: () => {
+      saveLibrary({ history: [] });
+      set({ listeningHistory: [] });
+    },
 
     userProfile: {
       name: 'slowii',
@@ -516,6 +532,15 @@ export const useSpootStore = create<SpootState>((set, get) => {
       };
       const newHistory = [histItem, ...get().listeningHistory.filter(h => h.track.id !== track.id)].slice(0, 50);
 
+      // Sauvegarder la session audio en cours & l'historique
+      saveAudioSettings({
+        lastTrack: track,
+        lastPositionMs: 0,
+      });
+      saveLibrary({
+        history: newHistory,
+      });
+
       set({
         currentTrack: track,
         playbackStatus: 'Playing',
@@ -534,6 +559,7 @@ export const useSpootStore = create<SpootState>((set, get) => {
 
       if (playbackStatus === 'Playing') {
         audioCore.pause();
+        saveAudioSettings({ lastPositionMs: get().positionMs });
         set({ playbackStatus: 'Paused' });
       } else {
         audioCore.resume();
@@ -611,11 +637,13 @@ export const useSpootStore = create<SpootState>((set, get) => {
 
     seek: (posMs) => {
       audioCore.seek(posMs);
+      saveAudioSettings({ lastPositionMs: posMs });
       set({ positionMs: posMs });
     },
 
     setVolume: (vol) => {
       audioCore.setVolume(vol);
+      saveAudioSettings({ volume: vol });
       set((state) => ({
         volume: vol,
         lastNonZeroVolume: vol > 0 ? vol : state.lastNonZeroVolume
@@ -776,19 +804,23 @@ export const useSpootStore = create<SpootState>((set, get) => {
     },
 
     addTrackToPlaylist: (playlistId, track) => {
-      set((state) => ({
-        playlists: state.playlists.map((pl) => {
+      set((state) => {
+        const updated = state.playlists.map((pl) => {
           if (pl.id === playlistId) {
             if (pl.tracks.some(t => t.id === track.id)) return pl;
             return { ...pl, tracks: [...pl.tracks, track] };
           }
           return pl;
-        }),
-        undoNotification: {
-          message: `« ${track.title} » ajouté à la playlist`,
-          undoAction: () => get().removeTrackFromPlaylist(playlistId, track.id)
-        }
-      }));
+        });
+        saveLibrary({ playlists: updated });
+        return {
+          playlists: updated,
+          undoNotification: {
+            message: `« ${track.title} » ajouté à la playlist`,
+            undoAction: () => get().removeTrackFromPlaylist(playlistId, track.id)
+          }
+        };
+      });
     },
 
     removeTrackFromPlaylist: (playlistId, trackId) => {
@@ -796,16 +828,20 @@ export const useSpootStore = create<SpootState>((set, get) => {
       const removed = pl?.tracks.find(t => t.id === trackId);
       if (!removed) return;
 
-      set((state) => ({
-        playlists: state.playlists.map((p) =>
+      set((state) => {
+        const updated = state.playlists.map((p) =>
           p.id === playlistId ? { ...p, tracks: p.tracks.filter(t => t.id !== trackId) } : p
-        ),
-        trash: [{ id: trackId, item: removed, type: 'track', deletedAt: Date.now() }, ...state.trash],
-        undoNotification: {
-          message: `« ${removed.title} » retiré de la playlist`,
-          undoAction: () => get().addTrackToPlaylist(playlistId, removed)
-        }
-      }));
+        );
+        saveLibrary({ playlists: updated });
+        return {
+          playlists: updated,
+          trash: [{ id: trackId, item: removed, type: 'track', deletedAt: Date.now() }, ...state.trash],
+          undoNotification: {
+            message: `« ${removed.title} » retiré de la playlist`,
+            undoAction: () => get().addTrackToPlaylist(playlistId, removed)
+          }
+        };
+      });
     },
 
     createPlaylist: (title, parentFolderId = null) => {
@@ -823,15 +859,19 @@ export const useSpootStore = create<SpootState>((set, get) => {
         excludeFromTasteProfile: false,
         tracks: []
       };
-      set((state) => ({
-        playlists: [...state.playlists, newPl],
-        activePlaylistId: newPl.id,
-        activeView: 'playlist',
-        undoNotification: {
-          message: `Playlist « ${newPl.title} » créée !`,
-          undoAction: () => set((s) => ({ playlists: s.playlists.filter(p => p.id !== newPl.id) }))
-        }
-      }));
+      set((state) => {
+        const updated = [...state.playlists, newPl];
+        saveLibrary({ playlists: updated });
+        return {
+          playlists: updated,
+          activePlaylistId: newPl.id,
+          activeView: 'playlist',
+          undoNotification: {
+            message: `Playlist « ${newPl.title} » créée !`,
+            undoAction: () => set((s) => ({ playlists: s.playlists.filter(p => p.id !== newPl.id) }))
+          }
+        };
+      });
       get().pushNav({ view: 'playlist', playlistId: newPl.id });
     },
 
@@ -839,31 +879,39 @@ export const useSpootStore = create<SpootState>((set, get) => {
       const pl = get().playlists.find(p => p.id === playlistId);
       if (!pl) return;
 
-      set((state) => ({
-        playlists: state.playlists.filter(p => p.id !== playlistId),
-        activePlaylistId: state.activePlaylistId === playlistId ? null : state.activePlaylistId,
-        activeView: state.activePlaylistId === playlistId ? 'home' : state.activeView,
-        trash: [{ id: playlistId, item: pl, type: 'playlist', deletedAt: Date.now() }, ...state.trash],
-        undoNotification: {
-          message: `Playlist « ${pl.title} » supprimée (Conservée dans la Corbeille)`,
-          undoAction: () => set(s => ({ playlists: [...s.playlists, pl] }))
-        }
-      }));
+      set((state) => {
+        const updated = state.playlists.filter(p => p.id !== playlistId);
+        saveLibrary({ playlists: updated });
+        return {
+          playlists: updated,
+          activePlaylistId: state.activePlaylistId === playlistId ? null : state.activePlaylistId,
+          activeView: state.activePlaylistId === playlistId ? 'home' : state.activeView,
+          trash: [{ id: playlistId, item: pl, type: 'playlist', deletedAt: Date.now() }, ...state.trash],
+          undoNotification: {
+            message: `Playlist « ${pl.title} » supprimée (Conservée dans la Corbeille)`,
+            undoAction: () => set(s => ({ playlists: [...s.playlists, pl] }))
+          }
+        };
+      });
     },
 
     updatePlaylistDetails: (playlistId, updates) => {
-      set((state) => ({
-        playlists: state.playlists.map((pl) => {
+      set((state) => {
+        const updated = state.playlists.map((pl) => {
           if (pl.id === playlistId) {
             return { ...pl, ...updates };
           }
           return pl;
-        }),
-        undoNotification: {
-          message: 'Détails de la playlist mis à jour avec succès.',
-          undoAction: () => {}
-        }
-      }));
+        });
+        saveLibrary({ playlists: updated });
+        return {
+          playlists: updated,
+          undoNotification: {
+            message: 'Détails de la playlist mis à jour avec succès.',
+            undoAction: () => {}
+          }
+        };
+      });
     },
 
     addPlaylistToQueue: (playlistId) => {
@@ -982,13 +1030,19 @@ export const useSpootStore = create<SpootState>((set, get) => {
         parentFolderId: null,
         playlistIds: []
       };
-      set((state) => ({ folders: [...state.folders, newFolder] }));
+      set((state) => {
+        const updatedFolders = [...state.folders, newFolder];
+        saveLibrary({ folders: updatedFolders });
+        return { folders: updatedFolders };
+      });
     },
 
     renameFolder: (folderId, newName) => {
-      set((s) => ({
-        folders: s.folders.map(f => f.id === folderId ? { ...f, name: newName } : f)
-      }));
+      set((s) => {
+        const updated = s.folders.map(f => f.id === folderId ? { ...f, name: newName } : f);
+        saveLibrary({ folders: updated });
+        return { folders: updated };
+      });
     },
 
     deleteFolder: (folderId, deletePlaylists) => {
@@ -996,13 +1050,14 @@ export const useSpootStore = create<SpootState>((set, get) => {
         const folder = s.folders.find(f => f.id === folderId);
         if (!folder) return s;
         const newFolders = s.folders.filter(f => f.id !== folderId);
+        let newPlaylists = s.playlists;
         if (deletePlaylists) {
-          const newPlaylists = s.playlists.filter(p => !folder.playlistIds.includes(p.id));
-          return { folders: newFolders, playlists: newPlaylists };
+          newPlaylists = s.playlists.filter(p => !folder.playlistIds.includes(p.id));
         } else {
-          const newPlaylists = s.playlists.map(p => folder.playlistIds.includes(p.id) ? { ...p, parentFolderId: null } : p);
-          return { folders: newFolders, playlists: newPlaylists };
+          newPlaylists = s.playlists.map(p => folder.playlistIds.includes(p.id) ? { ...p, parentFolderId: null } : p);
         }
+        saveLibrary({ folders: newFolders, playlists: newPlaylists });
+        return { folders: newFolders, playlists: newPlaylists };
       });
     },
 
@@ -1018,6 +1073,7 @@ export const useSpootStore = create<SpootState>((set, get) => {
           return { ...f, playlistIds: f.playlistIds.filter(id => id !== playlistId) };
         });
         const updatedPlaylists = s.playlists.map(p => p.id === playlistId ? { ...p, parentFolderId: targetFolderId } : p);
+        saveLibrary({ folders: updatedFolders, playlists: updatedPlaylists });
         return { folders: updatedFolders, playlists: updatedPlaylists };
       });
     },
@@ -1054,6 +1110,8 @@ export const useSpootStore = create<SpootState>((set, get) => {
             tracks: pl.tracks.map(t => t.id === trackId ? { ...t, isFavorite: nextFav } : t)
           };
         });
+
+        saveLibrary({ playlists: updatedPlaylists });
 
         return {
           tracks: updatedTracks,

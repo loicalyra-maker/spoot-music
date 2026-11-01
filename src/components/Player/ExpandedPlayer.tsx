@@ -38,6 +38,7 @@ export const ExpandedPlayer: React.FC = () => {
     blacklistEntity
   } = useSpootStore();
 
+  const storeDefaultCover = useThemeStore((s) => s.defaultCoverUrl);
   const [imageError, setImageError] = useState(false);
   const [creditsExpanded, setCreditsExpanded] = useState(false);
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false);
@@ -164,7 +165,6 @@ export const ExpandedPlayer: React.FC = () => {
     }
   };
 
-  const storeDefaultCover = useThemeStore((s) => s.defaultCoverUrl);
   const fallbackCover = storeDefaultCover || '/default-cover.jpg';
   const coverSrc = (!imageError && currentTrack.coverUrl) ? currentTrack.coverUrl : fallbackCover;
 

@@ -10,40 +10,60 @@ export const MobileBottomNav: React.FC = () => {
   const { activeView, setActiveView } = useSpootStore();
   const { openCustomizer } = useThemeStore();
 
+  const handleNavClick = (viewId: string, customAction?: () => void) => {
+    if (customAction) {
+      customAction();
+      return;
+    }
+
+    if (activeView === viewId) {
+      // Tap sur l'onglet déjà actif : défilement doux vers le haut (comportement officiel iOS / Spotify)
+      const scroller = document.querySelector('main .overflow-y-auto') || document.querySelector('.overflow-y-auto');
+      if (scroller) {
+        scroller.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      return;
+    }
+
+    setActiveView(viewId as any);
+  };
+
   const navItems = [
     {
       id: 'home',
       label: 'Accueil',
       icon: Home,
-      action: () => setActiveView('home'),
+      action: () => handleNavClick('home'),
       isActive: activeView === 'home',
     },
     {
       id: 'search',
       label: 'Recherche',
       icon: Search,
-      action: () => setActiveView('search'),
+      action: () => handleNavClick('search'),
       isActive: activeView === 'search',
     },
     {
       id: 'library',
       label: 'Bibliothèque',
       icon: Library,
-      action: () => setActiveView('library'),
+      action: () => handleNavClick('library'),
       isActive: activeView === 'library',
     },
     {
       id: 'customizer',
       label: 'Studio',
       icon: Sliders,
-      action: () => openCustomizer(),
+      action: () => handleNavClick('customizer', openCustomizer),
       isActive: false,
     },
     {
       id: 'settings',
       label: 'Paramètres',
       icon: Settings,
-      action: () => setActiveView('settings'),
+      action: () => handleNavClick('settings'),
       isActive: activeView === 'settings',
     },
   ];

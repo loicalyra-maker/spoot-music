@@ -103,8 +103,8 @@ export const NavigationLayout: React.FC<NavigationLayoutProps> = ({ children }) 
         isLiquidGlass ? 'bg-[#04131a]' : 'bg-[#0B0B0C]'
       }`}
     >
-      {/* 1. FOND DYNAMIQUE / WALLPAPER PERSONNALISÉ */}
-      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+      {/* 1. FOND DYNAMIQUE / WALLPAPER PERSONNALISÉ (Isolé et Invariant) */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         {backgroundImageUrl ? (
           <>
             {/* Image de fond personnalisée avec Flou et Assombrissement effectifs */}
